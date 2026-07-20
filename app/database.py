@@ -1,0 +1,33 @@
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+# Buscamos a URL do banco das variáveis de ambiente (.env). 
+# Caso não encontre, deixamos um fallback padrão para desenvolvimento local.
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL", 
+    "postgresql://postgres:2212@localhost:5432/auditorio_db"
+)
+
+# Criamos a engine de conexão do SQLAlchemy 2.0
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,  # Testa a conexão antes de usar para evitar erros de conexões derrubadas
+    pool_size=10,         # Quantidade máxima de conexões ativas mantidas no pool
+    max_overflow=20      # Conexões extras permitidas além do pool_size se houver pico de acessos
+)
+
+# Criamos a fábrica de sessões (Session Local)
+SessionLocal = sessionmaker(
+    autocommit=False, 
+    autoflush=False, 
+    bind=engine
+)
+
+# Função geradora que abre a sessão no banco, injeta na rota e garante o fechamento ao final
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
