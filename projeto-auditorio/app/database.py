@@ -5,8 +5,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # Buscamos a URL do banco das variáveis de ambiente (.env). 
 # Caso não encontre, deixamos um fallback padrão para desenvolvimento local.
 SQLALCHEMY_DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql://postgres:2212@localhost:5432/auditorio_db"
+    "DATABASE_URL"
 )
 
 # Criamos a engine de conexão do SQLAlchemy 2.0
