@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Agendamento do Auditório</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div id="login-screen" class="screen active">
+    <div class="login-card">
+      <div class="login-header">
+        <h1>Auditório</h1>
+        <p>Sistema de Agendamento</p>
+      </div>
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="login">Login</label>
+          <input type="text" id="login" name="login" placeholder="Seu login" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="senha">Senha</label>
+          <input type="password" id="senha" name="senha" placeholder="Sua senha" required autocomplete="current-password">
+        </div>
+        <div id="login-feedback" class="feedback" aria-live="polite"></div>
+        <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="dashboard-screen" class="screen">
+    <header class="topbar">
+      <div class="topbar-brand">
+        <h1>Auditório</h1>
+        <span>Sistema de Agendamento</span>
+      </div>
+      <button type="button" class="btn btn-outline" id="logout-btn">Sair</button>
+    </header>
+
+    <div class="dashboard-grid">
+
+      <aside class="dashboard-col-left">
+        <div class="card card-form">
+          <div class="card-header">
+            <h2 id="form-title">Novo Agendamento</h2>
+            <p>Preencha os dados para reservar o auditório.</p>
+          </div>
+          <form id="agendamento-form" novalidate>
+            <input type="hidden" id="editing-id" value="">
+
+            <div class="form-group">
+              <label for="nome-evento">Nome do Evento</label>
+              <input type="text" id="nome-evento" name="nome_evento" placeholder="Ex: Reunião de Diretoria" required>
+            </div>
+
+            <div class="form-row form-row-3">
+              <div class="form-group">
+                <label for="data-evento">Data</label>
+                <input type="date" id="data-evento" name="data_evento" required>
+              </div>
+              <div class="form-group">
+                <label for="hora-inicio">Início</label>
+                <input type="time" id="hora-inicio" name="hora_inicio" required>
+              </div>
+              <div class="form-group">
+                <label for="hora-fim">Fim</label>
+                <input type="time" id="hora-fim" name="hora_fim" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="qtd-participantes">Quantidade de Participantes</label>
+              <input type="number" id="qtd-participantes" name="qtd_participantes" placeholder="Ex: 50" min="1" required>
+            </div>
+
+            <div class="form-group">
+              <label for="observacoes">Observações</label>
+              <textarea id="observacoes" name="observacoes" rows="2" placeholder="Informações adicionais..."></textarea>
+            </div>
+
+            <div id="agendamento-feedback" class="feedback" aria-live="polite"></div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary btn-full" id="agendamento-btn">Confirmar Agendamento</button>
+              <button type="button" class="btn btn-outline btn-full" id="cancel-edit-btn" style="display:none;">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </aside>
+
+      <section class="dashboard-col-right">
+
+        <div class="card card-highlight" id="proximo-evento-card">
+          <div class="card-header">
+            <h2>Próximo Evento</h2>
+          </div>
+          <div class="card-body" id="proximo-evento-content">
+            <p class="empty-state">Nenhum evento próximo agendado.</p>
+          </div>
+        </div>
+
+        <div class="card card-table">
+          <div class="card-header">
+            <h2>Agendamentos</h2>
+          </div>
+          <div class="card-body card-body-table">
+            <div class="search-bar">
+              <input type="text" id="busca-agendamentos" placeholder="Buscar por nome ou data..." autocomplete="off">
+            </div>
+            <div class="table-scroll">
+              <table id="tabela-agendamentos">
+                <thead>
+                  <tr>
+                    <th>Evento</th>
+                    <th>Data</th>
+                    <th>Início</th>
+                    <th>Fim</th>
+                    <th>Part.</th>
+                    <th class="th-actions">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabela-agendamentos-body">
+                  <tr class="empty-row">
+                    <td colspan="6" class="empty-state">Nenhum agendamento encontrado.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-body" id="modal-message"></div>
+      <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
