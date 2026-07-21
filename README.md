@@ -156,24 +156,26 @@ Use o endpoint de cadastro ou a documentação interativa do FastAPI em `http://
 Suba toda a stack com um comando:
 
 ```bash
-# Copie o arquivo de variaveis de ambiente Docker
-cp .env.docker .env
+# Configure as variaveis de ambiente (edite o arquivo com suas credenciais)
+copy .env.docker .env
+# Edite .env com sua DATABASE_URL e SECRET_KEY
 
-# Build e sobe os containers (db + api + frontend)
+# Build e sobe os containers
 docker compose up -d --build
 ```
 
 Acesse `http://localhost` (porta 80).
 
-### Serviços
+### Servicos
 
-| Serviço | Porta | Descrição |
+| Servico | Porta | Descricao |
 |---------|-------|-----------|
 | `frontend` | 80 | Nginx servindo SPA + reverse proxy para API |
-| `api` | 8000 | FastAPI (também exposta para debug) |
-| `db` | 5432 | PostgreSQL 15 |
+| `api` | 8000 | FastAPI (tambem exposta para debug) |
 
-### Comandos úteis
+> O banco de dados e externo (Neon PostgreSQL). Configure a `DATABASE_URL` no `.env`.
+
+### Comandos uteis
 
 ```bash
 # Ver logs
@@ -185,8 +187,8 @@ docker compose exec api alembic upgrade head
 # Parar tudo
 docker compose down
 
-# Recriar do zero (apaga volume do banco)
-docker compose down -v && docker compose up -d --build
+# Recriar do zero
+docker compose down && docker compose up -d --build
 ```
 
 ## Testes
