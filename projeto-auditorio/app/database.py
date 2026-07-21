@@ -12,9 +12,10 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
 # Criamos a engine de conexão do SQLAlchemy 2.0
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_pre_ping=True,  # Testa a conexão antes de usar para evitar erros de conexões derrubadas
-    pool_size=10,         # Quantidade máxima de conexões ativas mantidas no pool
-    max_overflow=20      # Conexões extras permitidas além do pool_size se houver pico de acessos
+    pool_pre_ping=True,  # Testa a conexao antes de usar para evitar erros de conexoes derrubadas
+    pool_size=10,         # Quantidade maxima de conexoes ativas mantidas no pool
+    max_overflow=20,      # Conexoes extras permitidas alem do pool_size se houver pico de acessos
+    pool_recycle=300      # Recicla conexoes a cada 5 minutos (necessario para Neon/serverless)
 )
 
 # Criamos a fábrica de sessões (Session Local)
