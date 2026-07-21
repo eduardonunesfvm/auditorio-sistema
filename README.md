@@ -28,6 +28,8 @@ Sistema web full-stack para gerenciamento de reservas de auditório corporativo,
 | Migrações | Alembic |
 | Autenticação | JWT + bcrypt (passlib) |
 | Validação | Pydantic v2 |
+| Containerização | Docker, docker compose |
+| Proxy reverso | Nginx |
 
 ## Arquitetura
 
@@ -50,11 +52,17 @@ O backend segue o padrão **Repository-Service**, separando acesso a dados, regr
 
 ```
 .
-├── auditorio-front/           # Frontend (SPA vanilla)
+├── docker-compose.yml          # Orquestração dos containers
+├── .env.docker                 # Variáveis de ambiente Docker
+├── auditorio-front/            # Frontend (SPA vanilla)
+│   ├── Dockerfile              # Container nginx
+│   ├── nginx.conf              # Proxy reverso p/ API
 │   ├── index.html
 │   ├── app.js
 │   └── styles.css
-├── projeto-auditorio/         # Backend FastAPI
+├── projeto-auditorio/          # Backend FastAPI
+│   ├── Dockerfile              # Container Python/FastAPI
+│   ├── .dockerignore
 │   ├── app/
 │   │   ├── main.py            # Entry point, CORS, routers
 │   │   ├── database.py        # Conexão SQLAlchemy
@@ -142,6 +150,44 @@ Acesse `http://localhost:5500`.
 ### 4. Criar usuário
 
 Use o endpoint de cadastro ou a documentação interativa do FastAPI em `http://localhost:8000/docs`.
+
+## Docker
+
+Suba toda a stack com um comando:
+
+```bash
+# Copie o arquivo de variaveis de ambiente Docker
+cp .env.docker .env
+
+# Build e sobe os containers (db + api + frontend)
+docker compose up -d --build
+```
+
+Acesse `http://localhost` (porta 80).
+
+### Serviços
+
+| Serviço | Porta | Descrição |
+|---------|-------|-----------|
+| `frontend` | 80 | Nginx servindo SPA + reverse proxy para API |
+| `api` | 8000 | FastAPI (também exposta para debug) |
+| `db` | 5432 | PostgreSQL 15 |
+
+### Comandos úteis
+
+```bash
+# Ver logs
+docker compose logs -f api
+
+# Rodar migracoes manualmente (o entrypoint ja faz automaticamente)
+docker compose exec api alembic upgrade head
+
+# Parar tudo
+docker compose down
+
+# Recriar do zero (apaga volume do banco)
+docker compose down -v && docker compose up -d --build
+```
 
 ## Testes
 

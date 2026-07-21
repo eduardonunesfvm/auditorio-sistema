@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = (location.protocol === "file:" || location.port === "5500") ? "http://127.0.0.1:8000" : "";
 
 var loginScreen = document.getElementById("login-screen");
 var dashboardScreen = document.getElementById("dashboard-screen");
