@@ -197,32 +197,30 @@ O `Dockerfile` na raiz do projeto esta pronto para deploy no [Render](https://re
 
 ### Configuracao
 
-1. Crie um novo **Web Service** no Render
-2. Conecte ao repositorio do GitHub
-3. Configure:
+1. Crie um **PostgreSQL** no Render (New → PostgreSQL)
+2. Crie um **Web Service** no Render (New → Web Service)
+3. Conecte ao repositorio do GitHub
+4. Configure o Web Service:
 
 | Campo | Valor |
 |-------|-------|
 | Runtime | Docker |
 | Dockerfile Path | `Dockerfile` |
-| Port | 8000 |
 
-4. Adicione as variaveis de ambiente:
+5. Adicione as variaveis de ambiente (Environment → Environment Variables):
 
-| Variavel | Descricao |
-|----------|-----------|
-| `DATABASE_URL` | String de conexao do Neon PostgreSQL |
+| Variavel | Valor |
+|----------|-------|
+| `DATABASE_URL` | String de conexao interna do PostgreSQL do Render |
 | `SECRET_KEY` | Chave secreta para JWT |
-| `ALGORITHM` | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` |
 
-> O Render define `PORT` automaticamente. O entrypoint.sh ja usa essa variavel.
+> O Render define `PORT` e a `DATABASE_URL` interna automaticamente se vinculados. Para usar o valor interno, copie a string da aba **Connections** do banco PostgreSQL.
 
-5. Clique em **Create Web Service**
+6. Clique em **Create Web Service**
 
 ### Health Check
 
-O endpoint `/health` serve como health check do Render. Configure o health check path como `/health`.
+Configure o health check path como `/health`. O endpoint verifica a conexao com o banco.
 
 ## Testes
 
