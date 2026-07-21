@@ -1,20 +1,21 @@
 import os
+import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Buscamos a URL do banco das variáveis de ambiente (.env). 
-# Caso não encontre, deixamos um fallback padrão para desenvolvimento local.
-SQLALCHEMY_DATABASE_URL = os.getenv(
-    "DATABASE_URL"
-)
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Criamos a engine de conexão do SQLAlchemy 2.0
+if not SQLALCHEMY_DATABASE_URL:
+    print("ERRO: variavel de ambiente DATABASE_URL nao definida.")
+    print("No Render, configure DATABASE_URL em Environment Variables do Web Service.")
+    sys.exit(1)
+
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_pre_ping=True,  # Testa a conexao antes de usar para evitar erros de conexoes derrubadas
-    pool_size=10,         # Quantidade maxima de conexoes ativas mantidas no pool
-    max_overflow=20,      # Conexoes extras permitidas alem do pool_size se houver pico de acessos
-    pool_recycle=300      # Recicla conexoes a cada 5 minutos (necessario para Neon/serverless)
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=300
 )
 
 # Criamos a fábrica de sessões (Session Local)
