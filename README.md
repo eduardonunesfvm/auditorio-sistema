@@ -191,6 +191,39 @@ docker compose down
 docker compose down && docker compose up -d --build
 ```
 
+## Deploy no Render
+
+O `Dockerfile` na raiz do projeto esta pronto para deploy no [Render](https://render.com).
+
+### Configuracao
+
+1. Crie um novo **Web Service** no Render
+2. Conecte ao repositorio do GitHub
+3. Configure:
+
+| Campo | Valor |
+|-------|-------|
+| Runtime | Docker |
+| Dockerfile Path | `Dockerfile` |
+| Port | 8000 |
+
+4. Adicione as variaveis de ambiente:
+
+| Variavel | Descricao |
+|----------|-----------|
+| `DATABASE_URL` | String de conexao do Neon PostgreSQL |
+| `SECRET_KEY` | Chave secreta para JWT |
+| `ALGORITHM` | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` |
+
+> O Render define `PORT` automaticamente. O entrypoint.sh ja usa essa variavel.
+
+5. Clique em **Create Web Service**
+
+### Health Check
+
+O endpoint `/health` serve como health check do Render. Configure o health check path como `/health`.
+
 ## Testes
 
 ```bash
