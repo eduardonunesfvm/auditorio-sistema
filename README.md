@@ -30,6 +30,8 @@ Sistema web full-stack para gerenciamento de reservas de auditório corporativo,
 | Validação | Pydantic v2 |
 | Containerização | Docker, docker compose |
 | Proxy reverso | Nginx |
+| CI/CD | GitHub Actions |
+| Deploy | Render |
 
 ## Arquitetura
 
@@ -221,6 +223,36 @@ O `Dockerfile` na raiz do projeto esta pronto para deploy no [Render](https://re
 ### Health Check
 
 Configure o health check path como `/health`. O endpoint verifica a conexao com o banco.
+
+## CI/CD
+
+O projeto usa GitHub Actions para rodar testes automaticamente em PRs e pushes para `master`.
+
+### Pipeline
+
+```
+PR aberta → GitHub Actions roda testes → tests passam? → merge liberado → Render faz deploy
+```
+
+- **Testes**: roda `pytest` com SQLite em memoria (sem depender de banco externo)
+- **Build**: verifica se a imagem Docker compila sem erros
+- **Deploy**: Render detecta push no `master` e faz deploy automatico
+
+### Como travar merges que quebram o sistema
+
+Para impedir que um merge quebre a aplicacao, configure **branch protection** no GitHub:
+
+1. Va em **Settings → Branches → Add classic branch protection rule**
+2. Branch name pattern: `master`
+3. Marque **Require status checks to pass before merging**
+4. Busque por `test` e `build` nos checks
+5. Marque **Require a pull request before merging** (opcional, para code review)
+
+Com isso, nenhum merge entra no `master` sem que os testes passem. Se o PR quebrar algo, o merge e bloqueado e o Render nunca recebe o codigo quebrado.
+
+### Rollback no Render
+
+Se algo passar mesmo assim, o Render guarda o historico de deploys. Basta ir em **Web Service → Deploys**, clicar no deploy anterior e selecionar **Rollback**.
 
 ## Testes
 

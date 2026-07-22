@@ -6,8 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.main import app
 from app.database import get_db
-from app.models import Base
-from app.models import Usuario
+from app.models import Base, Usuario, UserRole
 from app.security import gerar_senha_hash
 
 SQLITE_URL = "sqlite:///:memory:"
@@ -60,11 +59,12 @@ def db_session():
         db.close()
 
 
-def _criar_usuario(db, nome="Admin", login="admin", senha="123456"):
+def _criar_usuario(db, nome="Admin", login="admin", senha="123456", role=UserRole.SUPERINTENDENTE):
     usuario = Usuario(
         nome=nome,
         login=login,
         senha_hash=gerar_senha_hash(senha),
+        role=role,
     )
     db.add(usuario)
     db.commit()
@@ -469,6 +469,162 @@ class TestAgendamentosDeletar:
         res = client.delete(f"/agendamentos/{agendamento_id}")
 
         assert res.status_code == 401
+
+
+class TestRoleBasedAccess:
+    def test_login_retorna_role(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        res = client.post("/auth/login", json={"login": "admin", "senha": "123456"})
+        assert res.status_code == 200
+        data = res.json()
+        assert data["role"] == "admin"
+
+    def test_login_retorna_role_visualizador(self, client, db_session):
+        _criar_usuario(db_session, login="visitante", role=UserRole.VISUALIZADOR)
+        res = client.post("/auth/login", json={"login": "visitante", "senha": "123456"})
+        assert res.status_code == 200
+        data = res.json()
+        assert data["role"] == "visualizador"
+
+    def test_visualizador_pode_listar(self, client, db_session):
+        _criar_usuario(db_session, login="visitante", role=UserRole.VISUALIZADOR)
+        token = _obter_token(client, login="visitante")
+
+        res = client.get("/agendamentos", headers=_auth_headers(token))
+        assert res.status_code == 200
+
+    def test_visualizador_pode_ver_proximo(self, client, db_session):
+        _criar_usuario(db_session, login="visitante", role=UserRole.VISUALIZADOR)
+        token = _obter_token(client, login="visitante")
+
+        res = client.get("/agendamentos/proximo", headers=_auth_headers(token))
+        assert res.status_code == 200
+
+    def test_visualizador_nao_pode_criar(self, client, db_session):
+        _criar_usuario(db_session, login="visitante", role=UserRole.VISUALIZADOR)
+        token = _obter_token(client, login="visitante")
+
+        payload = {
+            "nome_evento": "Evento Bloqueado",
+            "data_evento": "2026-12-15",
+            "hora_inicio": "10:00",
+            "hora_fim": "12:00",
+        }
+        res = client.post(
+            "/agendamentos/criar_agendamento",
+            json=payload,
+            headers=_auth_headers(token),
+        )
+        assert res.status_code == 403
+        assert "visualizacao" in res.json()["detail"].lower()
+
+    def test_visualizador_nao_pode_atualizar(self, client, db_session):
+        _criar_usuario(db_session, login="admin", role=UserRole.SUPERINTENDENTE)
+        admin_token = _obter_token(client, login="admin")
+
+        create_res = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento Original",
+                "data_evento": "2026-12-15",
+                "hora_inicio": "14:00",
+                "hora_fim": "16:00",
+            },
+            headers=_auth_headers(admin_token),
+        )
+        agendamento_id = create_res.json()["id"]
+
+        _criar_usuario(db_session, login="visitante", role=UserRole.VISUALIZADOR)
+        visitante_token = _obter_token(client, login="visitante")
+
+        res = client.put(
+            f"/agendamentos/{agendamento_id}",
+            json={"nome_evento": "Tentativa de Edicao"},
+            headers=_auth_headers(visitante_token),
+        )
+        assert res.status_code == 403
+        assert "visualizacao" in res.json()["detail"].lower()
+
+    def test_visualizador_nao_pode_deletar(self, client, db_session):
+        _criar_usuario(db_session, login="admin", role=UserRole.SUPERINTENDENTE)
+        admin_token = _obter_token(client, login="admin")
+
+        create_res = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento para deletar",
+                "data_evento": "2026-12-15",
+                "hora_inicio": "08:00",
+                "hora_fim": "10:00",
+            },
+            headers=_auth_headers(admin_token),
+        )
+        agendamento_id = create_res.json()["id"]
+
+        _criar_usuario(db_session, login="visitante", role=UserRole.VISUALIZADOR)
+        visitante_token = _obter_token(client, login="visitante")
+
+        res = client.delete(
+            f"/agendamentos/{agendamento_id}",
+            headers=_auth_headers(visitante_token),
+        )
+        assert res.status_code == 403
+        assert "visualizacao" in res.json()["detail"].lower()
+
+    def test_superintendente_pode_criar(self, client, db_session):
+        _criar_usuario(db_session, login="sup", role=UserRole.SUPERINTENDENTE)
+        token = _obter_token(client, login="sup")
+
+        payload = {
+            "nome_evento": "Evento Permitido",
+            "data_evento": "2026-12-15",
+            "hora_inicio": "10:00",
+            "hora_fim": "12:00",
+        }
+        res = client.post(
+            "/agendamentos/criar_agendamento",
+            json=payload,
+            headers=_auth_headers(token),
+        )
+        assert res.status_code == 201
+
+    def test_admin_pode_criar(self, client, db_session):
+        _criar_usuario(db_session, login="adm", role=UserRole.ADMIN)
+        token = _obter_token(client, login="adm")
+
+        payload = {
+            "nome_evento": "Evento Admin",
+            "data_evento": "2026-12-15",
+            "hora_inicio": "08:00",
+            "hora_fim": "10:00",
+        }
+        res = client.post(
+            "/agendamentos/criar_agendamento",
+            json=payload,
+            headers=_auth_headers(token),
+        )
+        assert res.status_code == 201
+
+    def test_cadastro_com_role(self, client, db_session):
+        res = client.post("/auth/cadastro", json={
+            "nome": "Visitante Novo",
+            "login": "visitante_novo",
+            "senha": "123456",
+            "role": "visualizador",
+        })
+        assert res.status_code == 201
+        data = res.json()
+        assert data["role"] == "visualizador"
+
+    def test_cadastro_sem_role_usa_default(self, client, db_session):
+        res = client.post("/auth/cadastro", json={
+            "nome": "Usuario Default",
+            "login": "default_user",
+            "senha": "123456",
+        })
+        assert res.status_code == 201
+        data = res.json()
+        assert data["role"] == "superintendente"
 
 
 class TestHealth:

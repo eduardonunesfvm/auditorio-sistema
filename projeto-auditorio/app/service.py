@@ -2,7 +2,7 @@ import uuid
 from fastapi import HTTPException, status
 from app.repository import AgendamentoRepository, UsuarioRepository
 from app.schemas import AgendamentoCreate, UsuarioCreate, AgendamentoUpdate
-from app.models import Agendamento, Usuario
+from app.models import Agendamento, Usuario, UserRole
 from fastapi import HTTPException, status
 from app.repository import UsuarioRepository
 from app.security import verificar_senha, criar_token_acesso, gerar_senha_hash
@@ -94,11 +94,12 @@ class AuthService:
             )
             
         # 3. Gera o token com o UUID real do usuário do banco
-        token = criar_token_acesso(usuario_id=usuario.id)
+        token = criar_token_acesso(usuario_id=usuario.id, role=usuario.role)
         
         return {
             "access_token": token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "role": usuario.role
         }
 
 
@@ -107,11 +108,14 @@ class AuthService:
         # 1. Transforma a senha digitada em um hash seguro antes de mandar pro banco
         senha_criptografada = gerar_senha_hash(payload.senha)
         
+        role = payload.role or UserRole.SUPERINTENDENTE
+        
         # 2. Cria a instância do modelo do banco
         novo_usuario = Usuario(
             nome=payload.nome,
             login=payload.login,
-            senha_hash=senha_criptografada
+            senha_hash=senha_criptografada,
+            role=role
         )
         
         # 3. Manda pro repositório salvar

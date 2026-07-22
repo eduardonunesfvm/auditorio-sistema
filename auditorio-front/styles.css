@@ -590,6 +590,19 @@ body {
   min-width: 100px;
 }
 
+/* ===== VISUALIZADOR LAYOUT ===== */
+
+.dashboard-grid.visualizador-layout {
+  grid-template-columns: 1fr;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.dashboard-grid.visualizador-layout .dashboard-col-right {
+  gap: 1.25rem;
+}
+
 /* ===== RESPONSIVE ===== */
 
 @media (max-width: 800px) {
@@ -622,6 +635,10 @@ body {
     overflow: visible;
     padding: 1rem;
     gap: 1rem;
+  }
+
+  .dashboard-grid.visualizador-layout {
+    max-width: 100%;
   }
 
   .dashboard-col-left {

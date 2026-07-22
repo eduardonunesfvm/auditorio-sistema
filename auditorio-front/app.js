@@ -29,6 +29,7 @@ function showLogin() {
 function showDashboard() {
   loginScreen.classList.remove("active");
   dashboardScreen.classList.add("active");
+  applyRoleRestrictions();
   refreshAll();
 }
 
@@ -42,6 +43,19 @@ function setToken(token) {
 
 function clearToken() {
   localStorage.removeItem("access_token");
+  localStorage.removeItem("role");
+}
+
+function getRole() {
+  return localStorage.getItem("role");
+}
+
+function setRole(role) {
+  localStorage.setItem("role", role);
+}
+
+function isVisualizador() {
+  return getRole() === "visualizador";
 }
 
 function setButtonLoading(btn, loading) {
@@ -210,9 +224,20 @@ function renderTabela(agendamentos) {
     return;
   }
 
+  var isVis = isVisualizador();
   var html = "";
   for (var i = 0; i < agendamentos.length; i++) {
     var ev = agendamentos[i];
+    var actions = "";
+    if (!isVis) {
+      actions =
+        '<td class="td-actions">' +
+          '<button class="btn btn-sm btn-edit" data-id="' + ev.id + '" title="Editar">Editar</button>' +
+          '<button class="btn btn-sm btn-danger" data-id="' + ev.id + '" title="Excluir">Excluir</button>' +
+        '</td>';
+    } else {
+      actions = '<td class="td-actions"></td>';
+    }
     html +=
       '<tr>' +
         '<td>' + escapeHtml(ev.nome_evento) + '</td>' +
@@ -220,13 +245,31 @@ function renderTabela(agendamentos) {
         '<td>' + formatTime(ev.hora_inicio) + '</td>' +
         '<td>' + formatTime(ev.hora_fim) + '</td>' +
         '<td>' + (ev.quantidade_participantes != null ? ev.quantidade_participantes : "-") + '</td>' +
-        '<td class="td-actions">' +
-          '<button class="btn btn-sm btn-edit" data-id="' + ev.id + '" title="Editar">Editar</button>' +
-          '<button class="btn btn-sm btn-danger" data-id="' + ev.id + '" title="Excluir">Excluir</button>' +
-        '</td>' +
+        actions +
       '</tr>';
   }
   tabelaBody.innerHTML = html;
+}
+
+function applyRoleRestrictions() {
+  var isVis = isVisualizador();
+  var formCard = document.querySelector(".card-form");
+  var dashboardGrid = document.querySelector(".dashboard-grid");
+  var dashboardLeft = document.querySelector(".dashboard-col-left");
+
+  if (formCard) {
+    formCard.style.display = isVis ? "none" : "";
+  }
+  if (dashboardLeft) {
+    dashboardLeft.style.display = isVis ? "none" : "";
+  }
+  if (dashboardGrid) {
+    if (isVis) {
+      dashboardGrid.classList.add("visualizador-layout");
+    } else {
+      dashboardGrid.classList.remove("visualizador-layout");
+    }
+  }
 }
 
 function filtrarAgendamentos(query) {
@@ -322,6 +365,9 @@ loginForm.addEventListener("submit", async function (e) {
     }
 
     setToken(token);
+    if (data.role) {
+      setRole(data.role);
+    }
     clearForm(loginForm);
     showDashboard();
   } catch (err) {
@@ -347,6 +393,11 @@ cancelEditBtn.addEventListener("click", function () {
 agendamentoForm.addEventListener("submit", async function (e) {
   e.preventDefault();
   hideFeedback(agendamentoFeedback);
+
+  if (isVisualizador()) {
+    showAlertModal("Sua conta possui apenas permissao de visualizacao. Nao e possivel criar ou editar agendamentos.");
+    return;
+  }
 
   var nomeEvento = document.getElementById("nome-evento").value.trim();
   var dataEvento = document.getElementById("data-evento").value;
@@ -413,6 +464,11 @@ agendamentoForm.addEventListener("submit", async function (e) {
 tabelaBody.addEventListener("click", function (e) {
   var target = e.target;
   if (!target.classList.contains("btn-sm")) return;
+
+  if (isVisualizador()) {
+    showAlertModal("Sua conta possui apenas permissao de visualizacao.");
+    return;
+  }
 
   var id = target.getAttribute("data-id");
   if (!id) return;

@@ -1,41 +1,49 @@
 from fastapi import Depends, HTTPException, status
-
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
 from uuid import UUID
 
 from .security import decodificar_token_acesso
+from .database import get_db
+from .models import Usuario, UserRole
 
-# Instancia o esquema de segurança HTTPBearer
 security = HTTPBearer()
 
 
-async def obter_usuario_atual(credentials: HTTPAuthorizationCredentials = Depends(security)) -> UUID:
-    """
-    Dependência que extrai o token JWT do header Authorization e retorna o UUID do usuário.
-    
-    Esta função é usada como dependência (Depends) nas rotas que requerem autenticação.
-    
-    Args:
-        credentials: As credenciais capturadas pelo HTTPBearer (token no header Authorization)
-        
-    Returns:
-        UUID: O identificador do usuário autenticado extraído do payload do token
-        
-    Raises:
-        HTTPException: 401 Unauthorized se o token for inválido ou expirado
-    """
+async def obter_usuario_atual(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> Usuario:
     token = credentials.credentials
-    
+
     try:
-        usuario_id = decodificar_token_acesso(token)
-        return usuario_id
+        usuario_id, _role = decodificar_token_acesso(token)
     except HTTPException:
-        # Re-lança a HTTPException já formatada do decodificar_token_acesso
         raise
     except Exception:
-        # Caso haja alguma exceção inesperada, retorna 401
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Falha ao validar credenciais.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario nao encontrado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return usuario
+
+
+async def check_can_edit(
+    current_user: Usuario = Depends(obter_usuario_atual),
+) -> Usuario:
+    if current_user.role == UserRole.VISUALIZADOR:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seu perfil possui apenas permissao para visualizacao.",
+        )
+    return current_user
