@@ -12,6 +12,7 @@ jobs:
 
     env:
       SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-teste-chave-secreta' }}
+      DATABASE_URL: "sqlite:///./test.db"
 
     steps:
       - uses: actions/checkout@v4
