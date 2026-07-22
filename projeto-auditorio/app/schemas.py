@@ -2,9 +2,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from datetime import date, time
 from typing import Optional
 from uuid import UUID
+from app.models import UserRole
 
 # ==========================================
-# SCHEMAS DE USUÁRIO / AUTENTICAÇÃO
+# SCHEMAS DE USUARIO / AUTENTICACAO
 # ==========================================
 
 class UsuarioBase(BaseModel):
@@ -13,8 +14,8 @@ class UsuarioBase(BaseModel):
 
 class UsuarioResponse(UsuarioBase):
     id: UUID
+    role: UserRole
 
-    # Permite que o Pydantic leia os dados diretamente do modelo do SQLAlchemy
     model_config = ConfigDict(from_attributes=True)
 
 class LoginRequest(BaseModel):
@@ -23,7 +24,8 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
+    role: UserRole
 
 
 # ==========================================
@@ -48,27 +50,12 @@ class AgendamentoResponse(AgendamentoBase):
 
     model_config = ConfigDict(from_attributes=True)
     
-class LoginRequest(BaseModel):
-    login: str
-    senha: str
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    
 class UsuarioCreate(BaseModel):
     nome: str
     login: str
     senha: str
+    role: Optional[UserRole] = None
 
-class UsuarioResponse(BaseModel):
-    id: UUID
-    nome: str
-    login: str
-
-    class Config:
-        from_attributes = True
-        
 
 class AgendamentoUpdate(BaseModel):
     nome_evento: Optional[str] = None

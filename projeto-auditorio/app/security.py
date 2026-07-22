@@ -39,43 +39,46 @@ def verificar_senha(senha_pura: str, senha_hash: str) -> bool:
 # GESTÃO DE TOKENS (JWT)
 # ==========================================
 
-def criar_token_acesso(usuario_id: UUID) -> str:
-    """Gera o token JWT embutindo o ID do usuário no payload."""
+from app.models import UserRole
+
+def criar_token_acesso(usuario_id: UUID, role: UserRole) -> str:
+    """Gera o token JWT embutindo o ID e role do usuario no payload."""
     tempo_expiracao = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    # O payload guarda os dados que o front consegue ler ao decodificar o token
     payload = {
-        "sub": str(usuario_id),  # 'sub' (subject) é o padrão para o identificador do usuário
+        "sub": str(usuario_id),
+        "role": role.value if isinstance(role, UserRole) else role,
         "exp": tempo_expiracao
     }
     
     token_codificado = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     return token_codificado
 
-def decodificar_token_acesso(token: str) -> UUID:
-    """Decodifica o token, valida a expiração e extrai o UUID do usuário."""
+def decodificar_token_acesso(token: str) -> tuple[UUID, str]:
+    """Decodifica o token, valida a expiracao e extrai o UUID e role do usuario."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         usuario_id_str: Optional[str] = payload.get("sub")
+        role_str: Optional[str] = payload.get("role")
         
         if usuario_id_str is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido: identificador do usuário ausente.",
+                detail="Token invalido: identificador do usuario ausente.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
             
-        return UUID(usuario_id_str)
+        return UUID(usuario_id_str), role_str or "superintendente"
         
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="O token de acesso expirou. Faça login novamente.",
+            detail="O token de acesso expirou. Faca login novamente.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de acesso inválido ou corrompido.",
+            detail="Token de acesso invalido ou corrompido.",
             headers={"WWW-Authenticate": "Bearer"},
         )
