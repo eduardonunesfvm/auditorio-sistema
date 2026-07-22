@@ -254,8 +254,21 @@ function renderTabela(agendamentos) {
 function applyRoleRestrictions() {
   var isVis = isVisualizador();
   var formCard = document.querySelector(".card-form");
+  var dashboardGrid = document.querySelector(".dashboard-grid");
+  var dashboardLeft = document.querySelector(".dashboard-col-left");
+
   if (formCard) {
     formCard.style.display = isVis ? "none" : "";
+  }
+  if (dashboardLeft) {
+    dashboardLeft.style.display = isVis ? "none" : "";
+  }
+  if (dashboardGrid) {
+    if (isVis) {
+      dashboardGrid.classList.add("visualizador-layout");
+    } else {
+      dashboardGrid.classList.remove("visualizador-layout");
+    }
   }
 }
 
