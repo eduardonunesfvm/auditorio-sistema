@@ -161,6 +161,21 @@
                 <form id="ci-form" novalidate>
                   <input type="hidden" id="ci-editing-id" value="">
                   <div class="form-group">
+                    <label for="ci-tipo">Tipo de Documento</label>
+                    <select id="ci-tipo" name="ci_tipo" required>
+                      <option value="comunicacao_interna">Comunicacao Interna</option>
+                      <option value="solicitacao_material">Solicitacao de Material</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="ci-de">De (Setor de Origem)</label>
+                    <input type="text" id="ci-de" name="ci_de" placeholder="Ex: Secretaria da Saude" required maxlength="255">
+                  </div>
+                  <div class="form-group">
+                    <label for="ci-para">Para (Setor de Destino)</label>
+                    <input type="text" id="ci-para" name="ci_para" placeholder="Ex: Gabinete do Prefeito" required maxlength="255">
+                  </div>
+                  <div class="form-group">
                     <label for="ci-titulo">Titulo</label>
                     <input type="text" id="ci-titulo" name="ci_titulo" placeholder="Ex: Convocacao para Reuniao" required>
                   </div>
@@ -168,9 +183,25 @@
                     <label for="ci-data">Data</label>
                     <input type="date" id="ci-data" name="ci_data" required>
                   </div>
+                  <div id="ci-signatario-fields">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="ci-nome">Nome</label>
+                        <input type="text" id="ci-nome" name="ci_nome" placeholder="Seu nome" required maxlength="255">
+                      </div>
+                      <div class="form-group">
+                        <label for="ci-sobrenome">Sobrenome</label>
+                        <input type="text" id="ci-sobrenome" name="ci_sobrenome" placeholder="Seu sobrenome" required maxlength="255">
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="ci-cargo">Cargo</label>
+                      <input type="text" id="ci-cargo" name="ci_cargo" placeholder="Seu cargo" required maxlength="255">
+                    </div>
+                  </div>
                   <div class="form-group">
-                    <label for="ci-descricao">Descrição</label>
-                    <textarea id="ci-descricao" name="ci_descricao" rows="4" placeholder="Descreva o conteúdo da comunicação..." required></textarea>
+                    <label for="ci-descricao">Descricao</label>
+                    <textarea id="ci-descricao" name="ci_descricao" rows="4" placeholder="Descreva o conteudo da comunicacao..."></textarea>
                   </div>
                   <div id="ci-feedback" class="feedback" aria-live="polite"></div>
                   <div class="form-actions">
@@ -184,26 +215,29 @@
             <section class="dashboard-col-right">
               <div class="card card-table">
                 <div class="card-header">
-                  <h2>Comunicacoes Internas</h2>
+                  <h2>Comunicações Internas</h2>
                 </div>
                 <div class="card-body card-body-table">
                   <div class="search-bar">
-                    <input type="text" id="busca-cis" placeholder="Buscar por titulo..." autocomplete="off">
+                    <input type="text" id="busca-cis" placeholder="Buscar por titulo, de, para ou emitente..." autocomplete="off">
                   </div>
                   <div class="table-scroll">
                     <table id="tabela-cis">
                       <thead>
                         <tr>
                           <th>Nº</th>
+                          <th>Tipo</th>
                           <th>Titulo</th>
+                          <th>De</th>
+                          <th>Para</th>
                           <th>Data</th>
                           <th>Emitido por</th>
-                          <th class="th-actions">Ações</th>
+                          <th class="th-actions">Acoes</th>
                         </tr>
                       </thead>
                       <tbody id="tabela-cis-body">
                         <tr class="empty-row">
-                          <td colspan="5" class="empty-state">Nenhuma Comunicacao Interna encontrada.</td>
+                          <td colspan="8" class="empty-state">Nenhuma Comunicacao Interna encontrada.</td>
                         </tr>
                       </tbody>
                     </table>
@@ -224,6 +258,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
