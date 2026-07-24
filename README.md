@@ -49,7 +49,7 @@ Sistema web full-stack desenvolvido para a Secretaria de Saúde — gerenciament
 |---|---|
 | Backend | Python 3.11, FastAPI, Uvicorn |
 | Frontend | HTML5, CSS3, JavaScript (vanilla, 950 linhas) |
-| Banco | PostgreSQL (Neon, serverless) |
+| Banco | PostgreSQL (Railway) |
 | ORM | SQLAlchemy 2.0 |
 | Migrações | Alembic |
 | Autenticação | JWT (PyJWT) + bcrypt (passlib) |
@@ -59,7 +59,7 @@ Sistema web full-stack desenvolvido para a Secretaria de Saúde — gerenciament
 | Containerização | Docker, Docker Compose |
 | Proxy reverso | Nginx (cache-busting) |
 | CI/CD | GitHub Actions (test + build → Railway) |
-| Infraestrutura | Railway (PaaS) + Neon PostgreSQL (DBaaS) |
+| Infraestrutura | Railway (PaaS, monolito Docker) |
 | Domínio | sistemanephs.com.br |
 
 ---
@@ -77,19 +77,15 @@ Sistema web full-stack desenvolvido para a Secretaria de Saúde — gerenciament
 ## Arquitetura
 
 ```
-┌─────────────────────────────────────────────────┐
-│                    Railway                       │
-│  ┌──────────────┐    ┌──────────────────────┐   │
-│  │   Nginx (:80) │───→│  FastAPI (:8000)     │   │
-│  │   SPA estática│    │  Repository-Service  │   │
-│  └──────────────┘    └──────────┬───────────┘   │
-│                                 │               │
-└─────────────────────────────────┼───────────────┘
-                                  │
-                         ┌────────▼────────┐
-                         │  Neon PostgreSQL │
-                         │  (serverless)    │
-                         └─────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                    Railway (PaaS)                     │
+│  ┌──────────────┐    ┌──────────────┐    ┌────────┐  │
+│  │   Nginx (:80) │───→│ FastAPI      │───→│ Postgre│  │
+│  │   SPA estática│    │ (:8000)      │    │ SQL    │  │
+│  └──────────────┘    └──────────────┘    └────────┘  │
+│                                                       │
+│  sistemanephs.com.br  ·  $5/mês + consumo             │
+└──────────────────────────────────────────────────────┘
 ```
 
 **Padrão backend:** `Router → Service → Repository → PostgreSQL`
@@ -164,7 +160,7 @@ main.py  →  routers/{auth, agendamentos, ci}.py
 | `GET` | `/api/v1/ci/{id}/pdf` | Baixar PDF da CI | Sim | Todos |
 | `PUT` | `/api/v1/ci/{id}` | Editar CI → PDF | Sim | admin, superintendente+ci |
 | `GET` | `/health` | Health check | Não | — |
-| `GET` | `/docs` | Swagger UI | Não | — |
+| `GET` | `/docs` | Swagger UI (dev apenas) | Não | — |
 
 ---
 
@@ -285,14 +281,17 @@ pytest app/tests.py -v
 
 ---
 
-## Infraestrutura em Produção
+## Custos
 
-| Recurso | Provedor | Plano |
-|---|---|---|
-| Aplicação | Railway | Hobby |
-| Banco de dados | Neon PostgreSQL | Free (0.5 GB) |
-| Domínio | Registro.br | sistemanephs.com.br |
-| CI/CD | GitHub Actions | Free |
+| Recurso | Provedor | Plano | Custo/mês |
+|---|---|---|---|
+| Aplicação + Banco | Railway | Hobby ($5 + consumo) | ~$6.57 |
+| Domínio | Registro.br | sistemanephs.com.br | ~R$3.33 |
+| CI/CD | GitHub Actions | Free | $0 |
+
+**Custo anual estimado:** ~$79 (Railway) + R$40 (domínio) ≈ **R$475/ano**
+
+O sistema consome <1% de CPU e ~100 MB de RAM em operação normal. A estimativa de consumo do Railway é de $1.57/mês além do plano base de $5, totalizando ~$6.57/mês.
 
 ---
 
