@@ -8,10 +8,16 @@ import os
 from app.database import get_db
 from app.routers import auth, agendamentos, ci
 
+ENV = os.getenv("ENV", "development")
+_docs_enabled = ENV != "production"
+
 app = FastAPI(
     title="Sistema da Secretaria",
     description="Sistema interno corporativo para gerenciamento de auditório e comunicação interna.",
-    version="2.0.0"
+    version="2.0.0",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
 )
 
 app.add_middleware(
