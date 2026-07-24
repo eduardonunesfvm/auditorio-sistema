@@ -41,25 +41,27 @@ def verificar_senha(senha_pura: str, senha_hash: str) -> bool:
 
 from app.models import UserRole
 
-def criar_token_acesso(usuario_id: UUID, role: UserRole) -> str:
-    """Gera o token JWT embutindo o ID e role do usuario no payload."""
+def criar_token_acesso(usuario_id: UUID, role: UserRole, permissions: list[str] | None = None) -> str:
+    """Gera o token JWT embutindo o ID, role e permissions do usuario no payload."""
     tempo_expiracao = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     payload = {
         "sub": str(usuario_id),
         "role": role.value if isinstance(role, UserRole) else role,
+        "permissions": permissions or [],
         "exp": tempo_expiracao
     }
     
     token_codificado = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     return token_codificado
 
-def decodificar_token_acesso(token: str) -> tuple[UUID, str]:
-    """Decodifica o token, valida a expiracao e extrai o UUID e role do usuario."""
+def decodificar_token_acesso(token: str) -> tuple[UUID, str, list[str]]:
+    """Decodifica o token, valida a expiracao e extrai o UUID, role e permissions do usuario."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         usuario_id_str: Optional[str] = payload.get("sub")
         role_str: Optional[str] = payload.get("role")
+        permissions: list[str] = payload.get("permissions", [])
         
         if usuario_id_str is None:
             raise HTTPException(
@@ -68,7 +70,7 @@ def decodificar_token_acesso(token: str) -> tuple[UUID, str]:
                 headers={"WWW-Authenticate": "Bearer"},
             )
             
-        return UUID(usuario_id_str), role_str or "superintendente"
+        return UUID(usuario_id_str), role_str or "superintendente", permissions
         
     except jwt.ExpiredSignatureError:
         raise HTTPException(

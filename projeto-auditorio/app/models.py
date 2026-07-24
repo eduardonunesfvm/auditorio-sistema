@@ -1,8 +1,8 @@
 import uuid
 import enum
-from datetime import date, time
+from datetime import date, time, datetime
 from typing import List, Optional
-from sqlalchemy import String, Date, Time, Text, Integer, ForeignKey, Uuid
+from sqlalchemy import String, Date, Time, Text, Integer, ForeignKey, Uuid, JSON, DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 class UserRole(str, enum.Enum):
@@ -21,10 +21,17 @@ class Usuario(Base):
     login: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(String(30), nullable=False, default=UserRole.SUPERINTENDENTE)
+    permissions: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
     agendamentos: Mapped[List["Agendamento"]] = relationship(
         "Agendamento", 
         back_populates="criador", 
+        cascade="all, delete-orphan"
+    )
+
+    comunicacoes_internas: Mapped[List["ComunicacaoInterna"]] = relationship(
+        "ComunicacaoInterna",
+        back_populates="usuario",
         cascade="all, delete-orphan"
     )
 
@@ -43,3 +50,21 @@ class Agendamento(Base):
     usuario_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
     
     criador: Mapped["Usuario"] = relationship("Usuario", back_populates="agendamentos")
+
+
+class ComunicacaoInterna(Base):
+    __tablename__ = "comunicacoes_internas"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    numero_ci: Mapped[int] = mapped_column(Integer, nullable=False)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    descricao: Mapped[str] = mapped_column(Text, nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+    usuario: Mapped["Usuario"] = relationship("Usuario", back_populates="comunicacoes_internas")
+
+    @property
+    def criador_nome(self) -> str:
+        return self.usuario.nome if self.usuario else ""

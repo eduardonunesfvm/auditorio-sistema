@@ -6,12 +6,12 @@ from sqlalchemy import text
 import os
 
 from app.database import get_db
-from app.routers import auth, agendamentos
+from app.routers import auth, agendamentos, ci
 
 app = FastAPI(
-    title="API de Agendamento do Auditorio",
-    description="Sistema interno corporativo para gerenciamento e reservas do auditorio pelos Superintendentes.",
-    version="1.0.0"
+    title="Sistema da Secretaria",
+    description="Sistema interno corporativo para gerenciamento de auditorio e comunicacao interna.",
+    version="2.0.0"
 )
 
 app.add_middleware(
@@ -24,6 +24,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(agendamentos.router)
+app.include_router(ci.router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Monitoramento"])
@@ -41,7 +42,7 @@ def health_check(db: Session = Depends(get_db)):
         )
 
 
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "auditorio-front")
 
 
 @app.get("/{full_path:path}", include_in_schema=False)

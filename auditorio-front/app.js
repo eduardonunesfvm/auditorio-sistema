@@ -54,6 +54,23 @@ function setRole(role) {
   localStorage.setItem("role", role);
 }
 
+function getPermissions() {
+  var token = getToken();
+  if (!token) return [];
+  try {
+    var parts = token.split(".");
+    if (parts.length !== 3) return [];
+    var payload = JSON.parse(atob(parts[1]));
+    return payload.permissions || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function temPermissaoCI() {
+  return getRole() === "admin" || getPermissions().indexOf("ci") !== -1;
+}
+
 function isVisualizador() {
   return getRole() === "visualizador";
 }
@@ -549,6 +566,197 @@ buscaInput.addEventListener("input", function () {
   var filtrados = filtrarAgendamentos(query);
   renderTabela(filtrados);
 });
+
+var cisCache = [];
+
+function switchTab(tabName) {
+  document.querySelectorAll(".tab").forEach(function (t) {
+    t.classList.remove("active");
+  });
+  document.querySelectorAll(".tab-content").forEach(function (c) {
+    c.classList.remove("active");
+  });
+
+  var activeTab = document.querySelector('.tab[data-tab="' + tabName + '"]');
+  var activeContent = document.getElementById("tab-" + tabName);
+  if (activeTab) activeTab.classList.add("active");
+  if (activeContent) activeContent.classList.add("active");
+
+  if (tabName === "ci") {
+    atualizarEstadoCI();
+    loadCIs();
+  }
+}
+
+document.getElementById("tab-nav").addEventListener("click", function (e) {
+  var tab = e.target.closest(".tab");
+  if (!tab) return;
+  switchTab(tab.getAttribute("data-tab"));
+});
+
+function atualizarEstadoCI() {
+  var overlay = document.getElementById("ci-disabled-overlay");
+  var content = document.getElementById("ci-content");
+  var isVis = isVisualizador();
+  var hasPerm = temPermissaoCI();
+
+  if (isVis || !hasPerm) {
+    if (overlay) overlay.style.display = "flex";
+    if (content) content.style.opacity = "0.5";
+    if (content) content.style.pointerEvents = "none";
+  } else {
+    if (overlay) overlay.style.display = "none";
+    if (content) content.style.opacity = "1";
+    if (content) content.style.pointerEvents = "auto";
+  }
+
+  if (isVis) {
+    var formCard = document.querySelector("#tab-ci .card-form");
+    if (formCard) formCard.style.display = "none";
+  }
+}
+
+function renderTabelaCIs(cis) {
+  var tbody = document.getElementById("tabela-cis-body");
+  if (!cis || cis.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5" class="empty-state">Nenhuma Comunicacao Interna encontrada.</td></tr>';
+    return;
+  }
+
+  var html = "";
+  for (var i = 0; i < cis.length; i++) {
+    var ci = cis[i];
+    html +=
+      '<tr>' +
+        '<td>' + ci.numero_ci + '</td>' +
+        '<td>' + escapeHtml(ci.titulo) + '</td>' +
+        '<td>' + formatDate(ci.data) + '</td>' +
+        '<td>' + escapeHtml(ci.criador_nome || ci.usuario_id) + '</td>' +
+        '<td class="td-actions">' +
+          '<button class="btn btn-sm btn-edit baixar-ci-btn" data-id="' + ci.id + '" title="Baixar PDF">PDF</button>' +
+        '</td>' +
+      '</tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+async function loadCIs() {
+  try {
+    var res = await fetch(API_URL + "/api/v1/ci", {
+      method: "GET",
+      headers: apiHeaders(),
+    });
+
+    if (!res.ok) {
+      handleAuthError(res.status);
+      cisCache = [];
+    } else {
+      var data = await res.json();
+      cisCache = Array.isArray(data) ? data : [];
+    }
+  } catch (err) {
+    cisCache = [];
+  }
+
+  var query = document.getElementById("busca-cis") ? document.getElementById("busca-cis").value : "";
+  var filtrados = query ? cisCache.filter(function (ci) {
+    return ci.titulo.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+  }) : cisCache;
+  renderTabelaCIs(filtrados);
+}
+
+document.getElementById("ci-form").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  var feedback = document.getElementById("ci-feedback");
+  hideFeedback(feedback);
+
+  if (!temPermissaoCI()) {
+    showAlertModal("Voce nao tem permissao para gerar Comunicacao Interna.");
+    return;
+  }
+
+  var titulo = document.getElementById("ci-titulo").value.trim();
+  var data = document.getElementById("ci-data").value;
+  var descricao = document.getElementById("ci-descricao").value.trim();
+
+  if (!titulo || !data || !descricao) {
+    showFeedback(feedback, "Preencha todos os campos.", "error");
+    return;
+  }
+
+  var btn = document.getElementById("ci-btn");
+  setButtonLoading(btn, true);
+
+  try {
+    var res = await fetch(API_URL + "/api/v1/ci", {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ titulo: titulo, data: data, descricao: descricao }),
+    });
+
+    if (!res.ok) {
+      handleAuthError(res.status);
+      var errData = await res.json().catch(function () { return null; });
+      throw new Error(errData?.detail || "Erro ao gerar CI.");
+    }
+
+    var blob = await res.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "CI_" + titulo.substring(0, 30) + ".pdf";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showFeedback(feedback, "CI gerada com sucesso!", "success");
+    document.getElementById("ci-form").reset();
+    loadCIs();
+  } catch (err) {
+    showFeedback(feedback, err.message, "error");
+  } finally {
+    setButtonLoading(btn, false);
+  }
+});
+
+document.getElementById("tabela-cis-body").addEventListener("click", async function (e) {
+  var btn = e.target.closest(".baixar-ci-btn");
+  if (!btn) return;
+  var ciId = btn.getAttribute("data-id");
+  if (!ciId) return;
+
+  var res = await fetch(API_URL + "/api/v1/ci/" + encodeURIComponent(ciId) + "/pdf", {
+    method: "GET",
+    headers: { "Authorization": "Bearer " + getToken() },
+  });
+
+  if (!res.ok) {
+    handleAuthError(res.status);
+    return;
+  }
+
+  var blob = await res.blob();
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "CI_" + ciId + ".pdf";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+var buscaCIsInput = document.getElementById("busca-cis");
+if (buscaCIsInput) {
+  buscaCIsInput.addEventListener("input", function () {
+    var query = buscaCIsInput.value;
+    var filtrados = query ? cisCache.filter(function (ci) {
+      return ci.titulo.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+    }) : cisCache;
+    renderTabelaCIs(filtrados);
+  });
+}
 
 (function init() {
   if (getToken()) {
