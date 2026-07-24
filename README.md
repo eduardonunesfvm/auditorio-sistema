@@ -1,307 +1,299 @@
+# Sistema da Secretaria de Saúde
 
-# Sistema de Agendamento do Auditório
+[![CI](https://github.com/eduardonunesfvm/auditorio-sistema/actions/workflows/ci.yml/badge.svg)](https://github.com/eduardonunesfvm/auditorio-sistema/actions)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-production-brightgreen)
 
-Sistema web full-stack para gerenciamento de reservas de auditório corporativo, com autenticação JWT, detecção de conflitos de horário e interface responsiva.
+**Em produção → [sistemanephs.com.br](https://sistemanephs.com.br)**
 
-![interface](docs/interface.png)
-![login](docs/login.png)
+Sistema web full-stack desenvolvido para a Secretaria de Saúde — gerenciamento de reservas do auditório e emissão de Comunicações Internas (CI) com geração de PDF. Projetado, implementado e mantido por um desenvolvedor solo.
+
+---
 
 ## Funcionalidades
 
-- **Autenticação segura** — login com JWT e senhas hasheadas com bcrypt
-- **Cadastro e edição de eventos** — nome, data, horário, participantes e observações
-- **Detecção de conflitos** — impede sobreposição de horários no mesmo dia
-- **Card de próximo evento** — destaque visual do evento mais próximo
-- **Busca textual** — filtra agendamentos por nome ou data
-- **CRUD completo** — criar, listar, editar e excluir agendamentos
-- **Permissões por usuário** — cada usuário edita/exclui apenas seus próprios eventos
-- **Health check** — endpoint de monitoramento da API e banco de dados
+### Auditório
+
+- CRUD completo de agendamentos (nome, data, horário, participantes, observações)
+- Detecção de conflitos de horário com sobreposição matemática
+- Card de próximo evento com destaque visual
+- Busca textual por nome ou data
+- Cada usuário edita/exclui apenas seus próprios eventos
+
+### Comunicação Interna (CI)
+
+- Dois tipos de documento: **Comunicação Interna** e **Solicitação de Material**
+- Editor WYSIWYG (Jodit) com suporte a **tabelas**, negrito, itálico e listas
+- Campos **De/Para** (origem/destino) para rastreamento entre setores
+- PDF gerado com **WeasyPrint + Jinja2** — layout A4 profissional com banner institucional
+- Assinatura condicional: signatário livre (CI normal) ou autoridade fixa + carimbo + protocolo de recebimento (Solicitação)
+- Numeração sequencial automática (1–100 cíclico)
+
+### Autenticação e Permissões
+
+- JWT + bcrypt com roles hierárquicas:
+
+| Role | Auditório | CI |
+|---|---|---|
+| `admin` | CRUD completo | Acesso total |
+| `superintendente` | CRUD próprio | Com permissão `ci` |
+| `visualizador` | Somente leitura | Bloqueado |
+
+---
 
 ## Stack
 
 | Camada | Tecnologia |
-|--------|------------|
-| Backend | Python 3, FastAPI |
-| Frontend | HTML5, CSS3, JavaScript (vanilla) |
-| Banco | PostgreSQL |
+|---|---|
+| Backend | Python 3.11, FastAPI, Uvicorn |
+| Frontend | HTML5, CSS3, JavaScript (vanilla, 950 linhas) |
+| Banco | PostgreSQL (Neon, serverless) |
 | ORM | SQLAlchemy 2.0 |
 | Migrações | Alembic |
-| Autenticação | JWT + bcrypt (passlib) |
+| Autenticação | JWT (PyJWT) + bcrypt (passlib) |
 | Validação | Pydantic v2 |
-| Containerização | Docker, docker compose |
-| Proxy reverso | Nginx |
-| CI/CD | GitHub Actions |
-| Deploy | Render |
+| PDF | WeasyPrint + Jinja2 |
+| Editor WYSIWYG | Jodit (local, sem CDN) |
+| Containerização | Docker, Docker Compose |
+| Proxy reverso | Nginx (cache-busting) |
+| CI/CD | GitHub Actions (test + build → Railway) |
+| Infraestrutura | Railway (PaaS) + Neon PostgreSQL (DBaaS) |
+| Domínio | sistemanephs.com.br |
+
+---
+
+## Métricas
+
+```
+54 testes automatizados   14 arquivos Python    1.575 linhas Python
+ 3 tabelas no banco       14 endpoints REST      950 linhas JavaScript
+ 1 desenvolvedor          100% cobertura de CI/CD
+```
+
+---
 
 ## Arquitetura
 
 ```
-cliente (browser)  →  FastAPI (REST)  →  Service  →  Repository  →  PostgreSQL
-                         ↑
-                   JWT Auth (security.py)
+┌─────────────────────────────────────────────────┐
+│                    Railway                       │
+│  ┌──────────────┐    ┌──────────────────────┐   │
+│  │   Nginx (:80) │───→│  FastAPI (:8000)     │   │
+│  │   SPA estática│    │  Repository-Service  │   │
+│  └──────────────┘    └──────────┬───────────┘   │
+│                                 │               │
+└─────────────────────────────────┼───────────────┘
+                                  │
+                         ┌────────▼────────┐
+                         │  Neon PostgreSQL │
+                         │  (serverless)    │
+                         └─────────────────┘
 ```
 
-O backend segue o padrão **Repository-Service**, separando acesso a dados, regras de negócio e rotas HTTP:
+**Padrão backend:** `Router → Service → Repository → PostgreSQL`
 
-- `models.py` — definição das tabelas (SQLAlchemy ORM)
-- `schemas.py` — validação de entrada/saída (Pydantic)
-- `repository.py` — queries e acesso ao banco
-- `service.py` — lógica de negócio e validações
-- `routers/` — endpoints REST
-- `security.py` — hash de senha, criação e validação de tokens JWT
+```
+main.py  →  routers/{auth, agendamentos, ci}.py
+               ↓
+          service.py  (regras de negócio, PDF)
+               ↓
+          repository.py  (SQLAlchemy queries)
+               ↓
+          models.py  (ORM: usuarios, agendamentos, comunicacoes_internas)
+```
+
+**Padrão frontend:** SPA vanilla com dois módulos independentes — auditório e CI — cada um com seu próprio cache de dados, formulário, tabela e busca.
+
+---
 
 ## Estrutura do Projeto
 
 ```
 .
-├── docker-compose.yml          # Orquestração dos containers
-├── .env.docker                 # Variáveis de ambiente Docker
-├── auditorio-front/            # Frontend (SPA vanilla)
-│   ├── Dockerfile              # Container nginx
-│   ├── nginx.conf              # Proxy reverso p/ API
-│   ├── index.html
-│   ├── app.js
-│   └── styles.css
-├── projeto-auditorio/          # Backend FastAPI
-│   ├── Dockerfile              # Container Python/FastAPI
-│   ├── .dockerignore
-│   ├── app/
-│   │   ├── main.py            # Entry point, CORS, routers
-│   │   ├── database.py        # Conexão SQLAlchemy
-│   │   ├── models.py          # Tabelas: usuarios, agendamentos
-│   │   ├── schemas.py         # Schemas Pydantic
-│   │   ├── repository.py      # Camada de dados
-│   │   ├── service.py         # Regras de negócio
-│   │   ├── security.py        # JWT + bcrypt
-│   │   ├── dependencies.py    # Injeção de dependências
-│   │   ├── tests.py           # Testes com pytest
-│   │   └── routers/
-│   │       ├── auth.py        # /auth/login, /auth/cadastro
-│   │       └── agendamentos.py # CRUD de agendamentos
-│   ├── alembic/               # Migrações
-│   ├── .env.example
-│   └── requirements.txt
-└── README.md
+├── .github/workflows/ci.yml     # CI: test + build
+├── docker-compose.yml           # Orquestração local (dev)
+├── auditorio-front/             # Frontend SPA
+│   ├── Dockerfile               # Nginx + estáticos
+│   ├── nginx.conf               # Reverse proxy + cache headers
+│   ├── index.html               # 245 linhas
+│   ├── app.js                   # 950 linhas (auditório + CI + auth)
+│   ├── styles.css               # 970 linhas (responsivo)
+│   ├── jodit.min.js             # Editor WYSIWYG local
+│   └── favicon.png
+├── projeto-auditorio/           # Backend FastAPI
+│   ├── Dockerfile               # Python 3.11
+│   ├── entrypoint.sh            # Migrations + uvicorn
+│   ├── requirements.txt
+│   ├── alembic/                 # 4 migrations versionadas
+│   └── app/
+│       ├── main.py              # Entry point, CORS, static serve
+│       ├── database.py          # SQLAlchemy engine + session
+│       ├── models.py            # Usuario, Agendamento, ComunicacaoInterna
+│       ├── schemas.py           # Pydantic (create/response/update)
+│       ├── repository.py        # Queries e acesso a dados
+│       ├── service.py           # Regras de negócio + PDF (225 linhas)
+│       ├── security.py          # JWT + bcrypt
+│       ├── dependencies.py      # Injeção de dependências + RBAC
+│       ├── tests.py             # 54 testes com pytest + SQLite
+│       ├── templates/
+│       │   └── ci_template.html # Template PDF (Jinja2 + WeasyPrint)
+│       └── routers/
+│           ├── auth.py          # POST /auth/login, /auth/cadastro
+│           ├── agendamentos.py  # CRUD + próximo evento
+│           └── ci.py            # CI CRUD + PDF download
+└── docs/superpowers/            # Specs e planos de implementação
 ```
+
+---
 
 ## API Endpoints
 
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `POST` | `/auth/login` | Login e obtenção de token | Não |
-| `POST` | `/auth/cadastro` | Cadastro de novo usuário | Não |
-| `GET` | `/agendamentos` | Listar todos os agendamentos | Sim |
-| `GET` | `/agendamentos/proximo` | Próximo evento agendado | Sim |
-| `POST` | `/agendamentos/criar_agendamento` | Criar agendamento | Sim |
-| `PUT` | `/agendamentos/{id}` | Atualizar agendamento | Sim |
-| `DELETE` | `/agendamentos/{id}` | Excluir agendamento | Sim |
-| `GET` | `/health` | Health check | Não |
+| Método | Rota | Descrição | Auth | Role |
+|---|---|---|---|---|
+| `POST` | `/auth/login` | Login e token JWT | Não | — |
+| `POST` | `/auth/cadastro` | Cadastro de usuário | Não | — |
+| `GET` | `/agendamentos` | Listar agendamentos | Sim | Todos |
+| `GET` | `/agendamentos/proximo` | Próximo evento | Sim | Todos |
+| `POST` | `/agendamentos/criar_agendamento` | Criar agendamento | Sim | admin, superintendente |
+| `PUT` | `/agendamentos/{id}` | Editar agendamento | Sim | Criador ou admin |
+| `DELETE` | `/agendamentos/{id}` | Excluir agendamento | Sim | Criador ou admin |
+| `POST` | `/api/v1/ci` | Criar CI → PDF | Sim | admin, superintendente+ci |
+| `GET` | `/api/v1/ci` | Listar CIs | Sim | Todos |
+| `GET` | `/api/v1/ci/{id}/pdf` | Baixar PDF da CI | Sim | Todos |
+| `PUT` | `/api/v1/ci/{id}` | Editar CI → PDF | Sim | admin, superintendente+ci |
+| `GET` | `/health` | Health check | Não | — |
+| `GET` | `/docs` | Swagger UI | Não | — |
 
-## Como Rodar
-
-### Pré-requisitos
-
-- Python 3.10+
-- PostgreSQL 14+
-- Virtual environment (recomendado)
-
-### 1. Clone o repositório
-
-```bash
-git clone https://github.com/seu-usuario/sistema-controle-auditorio.git
-cd sistema-controle-auditorio
-```
-
-### 2. Backend
-
-```bash
-cd projeto-auditorio
-
-# Criar e ativar ambiente virtual
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/Mac:
-source .venv/bin/activate
-
-# Instalar dependências
-pip install -r requirements.txt
-
-# Configurar variáveis de ambiente
-cp .env.example .env
-# Edite .env com suas credenciais do PostgreSQL
-
-# Rodar migrações
-alembic upgrade head
-
-# Iniciar servidor
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 3. Frontend
-
-Abra `auditorio-front/index.html` diretamente no navegador ou sirva com qualquer servidor HTTP:
-
-```bash
-cd auditorio-front
-python -m http.server 5500
-```
-
-Acesse `http://localhost:5500`.
-
-### 4. Criar usuário
-
-Use o endpoint de cadastro ou a documentação interativa do FastAPI em `http://localhost:8000/docs`.
-
-## Docker
-
-Suba toda a stack com um comando:
-
-```bash
-# Configure as variaveis de ambiente (edite o arquivo com suas credenciais)
-copy .env.docker .env
-# Edite .env com sua DATABASE_URL e SECRET_KEY
-
-# Build e sobe os containers
-docker compose up -d --build
-```
-
-Acesse `http://localhost` (porta 80).
-
-### Servicos
-
-| Servico | Porta | Descricao |
-|---------|-------|-----------|
-| `frontend` | 80 | Nginx servindo SPA + reverse proxy para API |
-| `api` | 8000 | FastAPI (tambem exposta para debug) |
-
-> O banco de dados e externo (Neon PostgreSQL). Configure a `DATABASE_URL` no `.env`.
-
-### Comandos uteis
-
-```bash
-# Ver logs
-docker compose logs -f api
-
-# Rodar migracoes manualmente (o entrypoint ja faz automaticamente)
-docker compose exec api alembic upgrade head
-
-# Parar tudo
-docker compose down
-
-# Recriar do zero
-docker compose down && docker compose up -d --build
-```
-
-## Deploy no Render
-
-O `Dockerfile` na raiz do projeto esta pronto para deploy no [Render](https://render.com).
-
-### Configuracao
-
-1. Crie um **PostgreSQL** no Render (New → PostgreSQL)
-2. Crie um **Web Service** no Render (New → Web Service)
-3. Conecte ao repositorio do GitHub
-4. Configure o Web Service:
-
-| Campo | Valor |
-|-------|-------|
-| Runtime | Docker |
-| Dockerfile Path | `Dockerfile` |
-
-5. Adicione as variaveis de ambiente (Environment → Environment Variables):
-
-| Variavel | Valor |
-|----------|-------|
-| `DATABASE_URL` | String de conexao interna do PostgreSQL do Render |
-| `SECRET_KEY` | Chave secreta para JWT |
-
-> O Render define `PORT` e a `DATABASE_URL` interna automaticamente se vinculados. Para usar o valor interno, copie a string da aba **Connections** do banco PostgreSQL.
-
-6. Clique em **Create Web Service**
-
-### Health Check
-
-Configure o health check path como `/health`. O endpoint verifica a conexao com o banco.
-
-## CI/CD
-
-O projeto usa GitHub Actions para rodar testes automaticamente em PRs e pushes para `master`.
-
-### Pipeline
-
-```
-PR aberta → GitHub Actions roda testes → tests passam? → merge liberado → Render faz deploy
-```
-
-- **Testes**: roda `pytest` com SQLite em memoria (sem depender de banco externo)
-- **Build**: verifica se a imagem Docker compila sem erros
-- **Deploy**: Render detecta push no `master` e faz deploy automatico
-
-### Como travar merges que quebram o sistema
-
-Para impedir que um merge quebre a aplicacao, configure **branch protection** no GitHub:
-
-1. Va em **Settings → Branches → Add classic branch protection rule**
-2. Branch name pattern: `master`
-3. Marque **Require status checks to pass before merging**
-4. Busque por `test` e `build` nos checks
-5. Marque **Require a pull request before merging** (opcional, para code review)
-
-Com isso, nenhum merge entra no `master` sem que os testes passem. Se o PR quebrar algo, o merge e bloqueado e o Render nunca recebe o codigo quebrado.
-
-### Rollback no Render
-
-Se algo passar mesmo assim, o Render guarda o historico de deploys. Basta ir em **Web Service → Deploys**, clicar no deploy anterior e selecionar **Rollback**.
-
-## Testes
-
-```bash
-cd projeto-auditorio
-pytest app/tests.py -v
-```
+---
 
 ## Banco de Dados
-
-### Diagrama
 
 ```
 usuarios
 ├── id (UUID, PK)
 ├── nome (VARCHAR 100)
 ├── login (VARCHAR 50, UNIQUE)
-└── senha_hash (VARCHAR 255)
+├── senha_hash (VARCHAR 255)
+├── role (VARCHAR 30: admin | superintendente | visualizador)
+└── permissions (JSON: ["ci", ...])
 
 agendamentos
 ├── id (UUID, PK)
 ├── nome_evento (VARCHAR 150)
-├── data_evento (DATE)
+├── data_evento (DATE, INDEX)
 ├── hora_inicio (TIME)
 ├── hora_fim (TIME)
-├── quantidade_participantes (INTEGER)
-├── observacoes (TEXT)
+├── quantidade_participantes (INTEGER, NULL)
+├── observacoes (TEXT, NULL)
 └── usuario_id (UUID, FK → usuarios.id)
+
+comunicacoes_internas
+├── id (UUID, PK)
+├── numero_ci (INTEGER, sequencial 1–100)
+├── tipo (VARCHAR 50: comunicacao_interna | solicitacao_material)
+├── de (VARCHAR 255)
+├── para (VARCHAR 255)
+├── titulo (VARCHAR 255)
+├── descricao (TEXT, HTML)
+├── data (DATE)
+├── nome_signatario (VARCHAR 255, NULL)
+├── sobrenome_signatario (VARCHAR 255, NULL)
+├── cargo_signatario (VARCHAR 255, NULL)
+├── usuario_id (UUID, FK → usuarios.id)
+└── created_at (DATETIME)
 ```
-
-### Migrações
-
-```bash
-# Verificar status
-alembic current
-
-# Gerar nova migração após alterar models.py
-alembic revision --autogenerate -m "descricao da alteracao"
-
-# Aplicar migrações
-alembic upgrade head
-```
-
-## Regras de Negócio
-
-- Hora de início deve ser menor que hora de término
-- Não permite sobreposição de horários no mesmo dia
-- Apenas o criador do evento pode editá-lo ou excluí-lo
 
 ---
 
-Desenvolvido por [Eduardo Nunes](https://linkedin.com/in/eduardonunesfvm)
+## Pipeline CI/CD
+
+```
+feature/*  →  PR para develop  →  GitHub Actions  →  merge develop
+                                                     ↓
+                                              PR develop → master
+                                                     ↓
+                                              GitHub Actions
+                                              (test + build)
+                                                     ↓
+                                              merge master
+                                                     ↓
+                                           Railway auto-deploy
+                                           (sistemanephs.com.br)
+```
+
+- **Test**: `pytest` com SQLite em memória (sem dependência de banco externo)
+- **Build**: `docker build` validando a imagem sem push
+- **Deploy**: Railway detecta push no `master` automaticamente
+
+---
+
+## Como Rodar Localmente
+
+### Pré-requisitos
+
+- Python 3.11+
+- PostgreSQL 14+ (ou Docker)
+- Railway CLI (para prod)
+
+### Opção 1: Docker Compose
+
+```bash
+git clone https://github.com/eduardonunesfvm/auditorio-sistema.git
+cd auditorio-sistema
+
+cp projeto-auditorio/.env.example projeto-auditorio/.env
+# Edite .env com DATABASE_URL e SECRET_KEY
+
+docker compose up -d --build
+# http://localhost
+```
+
+### Opção 2: Desenvolvimento
+
+```bash
+cd projeto-auditorio
+python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+
+# Outro terminal
+cd auditorio-front
+python -m http.server 5500
+# http://localhost:5500
+```
+
+### Testes
+
+```bash
+cd projeto-auditorio
+pytest app/tests.py -v
+```
+
+---
+
+## Regras de Negócio
+
+- Hora de início < hora de término
+- Sem sobreposição de horários no mesmo dia
+- Apenas o criador (ou admin) pode editar/excluir eventos
+- CI: campos de signatário obrigatórios apenas para CI normal
+- CI: numeração cíclica 1–100 compartilhada entre tipos
+- Visualizador: somente leitura, sem acesso ao módulo CI
+
+---
+
+## Infraestrutura em Produção
+
+| Recurso | Provedor | Plano |
+|---|---|---|
+| Aplicação | Railway | Hobby |
+| Banco de dados | Neon PostgreSQL | Free (0.5 GB) |
+| Domínio | Registro.br | sistemanephs.com.br |
+| CI/CD | GitHub Actions | Free |
+
+---
+
+Desenvolvido por **[Eduardo Nunes](https://linkedin.com/in/eduardonunesfvm)** — estagiário e único desenvolvedor da Secretaria de Saúde, responsável por levantamento de requisitos, arquitetura, implementação, deploy e manutenção.
