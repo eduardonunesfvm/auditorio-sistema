@@ -412,7 +412,7 @@ agendamentoForm.addEventListener("submit", async function (e) {
   hideFeedback(agendamentoFeedback);
 
   if (isVisualizador()) {
-    showAlertModal("Sua conta possui apenas permissao de visualizacao. Nao e possivel criar ou editar agendamentos.");
+    showAlertModal("Sua conta possui apenas permissão de visualização. Não é possível criar ou editar agendamentos.");
     return;
   }
 
@@ -483,7 +483,7 @@ tabelaBody.addEventListener("click", function (e) {
   if (!target.classList.contains("btn-sm")) return;
 
   if (isVisualizador()) {
-    showAlertModal("Sua conta possui apenas permissao de visualizacao.");
+    showAlertModal("Sua conta possui apenas permissão de visualização.");
     return;
   }
 
@@ -530,7 +530,7 @@ function preencherFormularioEdicao(id) {
 
 function confirmarExclusao(id) {
   showConfirmModal(
-    "Tem certeza que deseja excluir este agendamento? Esta acao nao pode ser desfeita.",
+    "Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.",
     function () {
       excluirAgendamento(id);
     }
@@ -671,7 +671,7 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
   hideFeedback(feedback);
 
   if (!temPermissaoCI()) {
-    showAlertModal("Voce nao tem permissao para gerar Comunicacao Interna.");
+    showAlertModal("Você não tem permissão para gerar Comunicação Interna.");
     return;
   }
 

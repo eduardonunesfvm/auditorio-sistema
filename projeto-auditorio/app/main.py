@@ -10,7 +10,7 @@ from app.routers import auth, agendamentos, ci
 
 app = FastAPI(
     title="Sistema da Secretaria",
-    description="Sistema interno corporativo para gerenciamento de auditorio e comunicacao interna.",
+    description="Sistema interno corporativo para gerenciamento de auditório e comunicação interna.",
     version="2.0.0"
 )
 

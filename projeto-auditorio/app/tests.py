@@ -532,7 +532,7 @@ class TestRoleBasedAccess:
             headers=_auth_headers(token),
         )
         assert res.status_code == 403
-        assert "visualizacao" in res.json()["detail"].lower()
+        assert "visualização" in res.json()["detail"].lower()
 
     def test_visualizador_nao_pode_atualizar(self, client, db_session):
         _criar_usuario(db_session, login="admin", role=UserRole.SUPERINTENDENTE)
@@ -559,7 +559,7 @@ class TestRoleBasedAccess:
             headers=_auth_headers(visitante_token),
         )
         assert res.status_code == 403
-        assert "visualizacao" in res.json()["detail"].lower()
+        assert "visualização" in res.json()["detail"].lower()
 
     def test_visualizador_nao_pode_deletar(self, client, db_session):
         _criar_usuario(db_session, login="admin", role=UserRole.SUPERINTENDENTE)
@@ -585,7 +585,7 @@ class TestRoleBasedAccess:
             headers=_auth_headers(visitante_token),
         )
         assert res.status_code == 403
-        assert "visualizacao" in res.json()["detail"].lower()
+        assert "visualização" in res.json()["detail"].lower()
 
     def test_superintendente_pode_criar(self, client, db_session):
         _criar_usuario(db_session, login="sup", role=UserRole.SUPERINTENDENTE)

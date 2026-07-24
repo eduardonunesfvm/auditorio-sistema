@@ -44,7 +44,7 @@ async def check_can_edit(
     if current_user.role == UserRole.VISUALIZADOR:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seu perfil possui apenas permissao para visualizacao.",
+            detail="Seu perfil possui apenas permissão para visualização.",
         )
     return current_user
 
@@ -55,13 +55,13 @@ async def check_ci_access(
     if current_user.role == UserRole.VISUALIZADOR:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seu perfil possui apenas permissao para visualizacao.",
+            detail="Seu perfil possui apenas permissão para visualização.",
         )
     if current_user.role == UserRole.ADMIN:
         return current_user
     if "ci" not in (current_user.permissions or []):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Voce nao tem permissao para acessar o modulo de Comunicacao Interna.",
+            detail="Você não tem permissão para acessar o módulo de Comunicação Interna.",
         )
     return current_user

@@ -188,7 +188,7 @@ class ComunicacaoInternaService:
     def gerar_pdf_por_id(self, ci_id: UUID) -> bytes:
         ci = self.repo.buscar_por_id(ci_id)
         if not ci:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicacao Interna nao encontrada.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicação Interna não encontrada.")
 
         html_renderizado = self._render_template(
             numero_ci=ci.numero_ci,
