@@ -42,7 +42,10 @@ def health_check(db: Session = Depends(get_db)):
         )
 
 
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "auditorio-front")
+STATIC_DIR = os.getenv(
+    "STATIC_DIR",
+    os.path.join(os.path.dirname(__file__), "..", "..", "auditorio-front")
+)
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
