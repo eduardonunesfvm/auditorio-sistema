@@ -129,7 +129,7 @@ class AuthService:
 class ComunicacaoInternaService:
     ERIKA = {
         "nome": "Erika Siqueira Souza Battistelli",
-        "cargo": "Superintendente de Gestao, Educacao, Humanizacao em saude",
+        "cargo": "Superintendente de Gestão, Educação, Humanização em saúde",
         "decreto": "Decreto nº 340, de 16/07/2025",
     }
 
@@ -207,7 +207,7 @@ class ComunicacaoInternaService:
     def gerar_pdf_por_id(self, ci_id: UUID) -> bytes:
         ci = self.repo.buscar_por_id(ci_id)
         if not ci:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicacao Interna nao encontrada.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicação Interna não encontrada.")
 
         html_renderizado = self._render_template(
             numero_ci=ci.numero_ci,
@@ -228,7 +228,7 @@ class ComunicacaoInternaService:
     def atualizar_ci(self, ci_id: UUID, dados: ComunicacaoInternaUpdate, usuario: Usuario) -> bytes:
         ci = self.repo.buscar_por_id(ci_id)
         if not ci:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicacao Interna nao encontrada.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicação Interna não encontrada.")
 
         self.repo.atualizar(ci, dados)
 

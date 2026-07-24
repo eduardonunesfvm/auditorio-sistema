@@ -118,7 +118,7 @@
 <body>
   {% if banner_src %}<img src="{{ banner_src }}" class="banner" alt="Banner">{% endif %}
 
-  <div class="numero-ci">COMUNICACAO INTERNA{% if is_solicitacao %} - SOLICITACAO DE MATERIAL{% endif %} N&ordm; {{ numero_ci }}</div>
+  <div class="numero-ci">COMUNICAÇÃO INTERNA{% if is_solicitacao %} - SOLICITAÇÃO DE MATERIAL{% endif %} Nº {{ numero_ci }}</div>
 
   <div class="info-row">
     <span class="info-label">Data:</span>
@@ -136,26 +136,26 @@
   </div>
 
   <div class="info-row">
-    <span class="info-label">Titulo:</span>
+    <span class="info-label">Título:</span>
     <span class="info-value">{{ titulo }}</span>
   </div>
 
   <div class="descricao-box">
-    <div class="label">Descricao:</div>
+    <div class="label">Descrição:</div>
     {{ descricao | safe }}
   </div>
 
   <div class="fechamento">
-    Sendo o que tenho para o momento, desde ja agradeco a vossa valorosa e prestimosa atencao.
+    Sendo o que tenho para o momento, desde já agradeço a vossa valorosa e prestimosa atenção.
   </div>
 
   {% if is_solicitacao %}
   <div class="assinatura">
     <div class="linha-assinatura"></div>
     <div class="assinatura-nome">Erika Siqueira Souza Battistelli</div>
-    <div class="assinatura-cargo">Superintendente de Gestao, Educacao, Humanizacao em saude</div>
-    <div class="assinatura-decreto">Decreto n&ordm; 340, de 16/07/2025</div>
-    <div class="carimbo">Espaco para carimbo</div>
+    <div class="assinatura-cargo">Superintendente de Gestão, Educação, Humanização em saúde</div>
+    <div class="assinatura-decreto">Decreto nº 340, de 16/07/2025</div>
+    <div class="carimbo">Espaço para carimbo</div>
   </div>
 
   <div class="recebimento">

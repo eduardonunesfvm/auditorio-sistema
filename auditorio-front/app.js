@@ -210,7 +210,7 @@ modalOverlay.addEventListener("click", function (e) {
 
 function renderProximoEvento(evento) {
   if (!evento) {
-    proximoEventoContent.innerHTML = '<p class="empty-state">Nenhum evento proximo agendado.</p>';
+    proximoEventoContent.innerHTML = '<p class="empty-state">Nenhum evento próximo agendado.</p>';
     return;
   }
 
@@ -225,7 +225,7 @@ function renderProximoEvento(evento) {
         '<span class="detail-value">' + formatDate(evento.data_evento) + '</span>' +
       '</div>' +
       '<div class="detail-item">' +
-        '<span class="detail-label">Horario</span>' +
+        '<span class="detail-label">Horário</span>' +
         '<span class="detail-value">' + formatTime(evento.hora_inicio) + ' - ' + formatTime(evento.hora_fim) + '</span>' +
       '</div>' +
       '<div class="detail-item">' +
@@ -378,7 +378,7 @@ loginForm.addEventListener("submit", async function (e) {
     var token = data.access_token;
 
     if (!token) {
-      throw new Error("Token nao recebido do servidor.");
+      throw new Error("Token não recebido do servidor.");
     }
 
     setToken(token);
@@ -425,18 +425,18 @@ agendamentoForm.addEventListener("submit", async function (e) {
   var editId = editingId.value;
 
   if (!nomeEvento || !dataEvento || !horaInicio || !horaFim) {
-    showFeedback(agendamentoFeedback, "Preencha todos os campos obrigatorios.", "error");
+    showFeedback(agendamentoFeedback, "Preencha todos os campos obrigatórios.", "error");
     return;
   }
 
   if (horaFim <= horaInicio) {
-    showFeedback(agendamentoFeedback, "A hora do fim deve ser posterior a hora de inicio.", "error");
+    showFeedback(agendamentoFeedback, "A hora do fim deve ser posterior à hora de início.", "error");
     return;
   }
 
   var token = getToken();
   if (!token) {
-    showFeedback(agendamentoFeedback, "Sessao expirada. Faca login novamente.", "error");
+    showFeedback(agendamentoFeedback, "Sessão expirada. Faça login novamente.", "error");
     setTimeout(function () {
       clearToken();
       showLogin();
@@ -507,7 +507,7 @@ function preencherFormularioEdicao(id) {
   }
 
   if (!ev) {
-    showFeedback(agendamentoFeedback, "Agendamento nao encontrado.", "error");
+    showFeedback(agendamentoFeedback, "Agendamento não encontrado.", "error");
     return;
   }
 
@@ -519,7 +519,7 @@ function preencherFormularioEdicao(id) {
   document.getElementById("qtd-participantes").value = ev.quantidade_participantes != null ? ev.quantidade_participantes : "";
   document.getElementById("observacoes").value = ev.observacoes || "";
 
-  agendamentoBtn.textContent = "Salvar Alteracoes";
+  agendamentoBtn.textContent = "Salvar Alterações";
   cancelEditBtn.style.display = "inline-flex";
   formTitle.textContent = "Editar Agendamento";
 
@@ -684,7 +684,7 @@ function atualizarEstadoCI() {
 function renderTabelaCIs(cis) {
   var tbody = document.getElementById("tabela-cis-body");
   if (!cis || cis.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="8" class="empty-state">Nenhuma Comunicacao Interna encontrada.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8" class="empty-state">Nenhuma Comunicação Interna encontrada.</td></tr>';
     return;
   }
 
@@ -751,7 +751,7 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
   hideFeedback(feedback);
 
   if (!temPermissaoCI()) {
-    showAlertModal("Voce nao tem permissao para gerar Comunicacao Interna.");
+    showAlertModal("Você não tem permissão para gerar Comunicação Interna.");
     return;
   }
 
@@ -767,13 +767,13 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
   var editId = document.getElementById("ci-editing-id").value;
 
   if (!tipo || !de || !para || !titulo || !data || !descricao) {
-    showFeedback(feedback, "Preencha todos os campos obrigatorios.", "error");
+    showFeedback(feedback, "Preencha todos os campos obrigatórios.", "error");
     return;
   }
 
   if (tipo === "comunicacao_interna") {
     if (!nomeSignatario || !sobrenomeSignatario || !cargoSignatario) {
-      showFeedback(feedback, "Preencha nome, sobrenome e cargo do signatario.", "error");
+      showFeedback(feedback, "Preencha nome, sobrenome e cargo do signatário.", "error");
       return;
     }
   }
@@ -883,7 +883,7 @@ function preencherFormularioEdicaoCI(ciId) {
   }
 
   if (!ci) {
-    showAlertModal("Comunicacao Interna nao encontrada.");
+    showAlertModal("Comunicação Interna não encontrada.");
     return;
   }
 
@@ -902,7 +902,7 @@ function preencherFormularioEdicaoCI(ciId) {
     setCIEditorContent(ci.descricao || "");
   }, 200);
 
-  document.getElementById("ci-btn").textContent = "Salvar Alteracoes";
+  document.getElementById("ci-btn").textContent = "Salvar Alterações";
   document.getElementById("ci-cancel-edit-btn").style.display = "inline-flex";
   document.getElementById("ci-feedback").textContent = "";
   document.getElementById("ci-feedback").className = "feedback";
