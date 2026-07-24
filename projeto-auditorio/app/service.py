@@ -1,12 +1,16 @@
 import uuid
 from fastapi import HTTPException, status
-from app.repository import AgendamentoRepository, UsuarioRepository
-from app.schemas import AgendamentoCreate, UsuarioCreate, AgendamentoUpdate
-from app.models import Agendamento, Usuario, UserRole
-from fastapi import HTTPException, status
-from app.repository import UsuarioRepository
+from fastapi.responses import Response
+from app.repository import AgendamentoRepository, UsuarioRepository, ComunicacaoInternaRepository
+from app.schemas import AgendamentoCreate, UsuarioCreate, AgendamentoUpdate, ComunicacaoInternaCreate
+from app.models import Agendamento, Usuario, UserRole, ComunicacaoInterna
 from app.security import verificar_senha, criar_token_acesso, gerar_senha_hash
 from uuid import UUID
+from jinja2 import Environment, FileSystemLoader
+from weasyprint import HTML
+from datetime import date
+import os
+import base64
 
 class AgendamentoService:
     def __init__(self, repo: AgendamentoRepository):
@@ -94,7 +98,7 @@ class AuthService:
             )
             
         # 3. Gera o token com o UUID real do usuário do banco
-        token = criar_token_acesso(usuario_id=usuario.id, role=usuario.role)
+        token = criar_token_acesso(usuario_id=usuario.id, role=usuario.role, permissions=usuario.permissions or [])
         
         return {
             "access_token": token,
@@ -120,3 +124,83 @@ class AuthService:
         
         # 3. Manda pro repositório salvar
         return self.repo.criar_usuario(novo_usuario)
+
+
+class ComunicacaoInternaService:
+    def __init__(self, repo: ComunicacaoInternaRepository):
+        self.repo = repo
+        template_dir = os.path.join(os.path.dirname(__file__), "templates")
+        self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
+        banner_path = os.path.join(template_dir, "secretariabanner.png")
+        self.banner_src = self._load_banner_base64(banner_path)
+
+    def _load_banner_base64(self, path: str) -> str:
+        try:
+            with open(path, "rb") as f:
+                data = base64.b64encode(f.read()).decode("utf-8")
+            return f"data:image/png;base64,{data}"
+        except Exception:
+            return ""
+
+    def _render_template(self, numero_ci: int, titulo: str, descricao: str, data_str: str, usuario_nome: str, usuario_role: str) -> str:
+        template = self.jinja_env.get_template("ci_template.html")
+        return template.render(
+            banner_src=self.banner_src,
+            numero_ci=numero_ci,
+            titulo=titulo,
+            descricao=descricao,
+            data=data_str,
+            usuario_nome=usuario_nome,
+            usuario_role=usuario_role,
+        )
+
+    def _calcular_proximo_numero(self) -> int:
+        max_numero = self.repo.obter_max_numero_ci()
+        proximo = (max_numero or 0) + 1
+        return ((proximo - 1) % 100) + 1
+
+    def criar_e_gerar_pdf(self, dados: ComunicacaoInternaCreate, usuario: Usuario) -> bytes:
+        numero_ci = self._calcular_proximo_numero()
+
+        nova_ci = ComunicacaoInterna(
+            numero_ci=numero_ci,
+            titulo=dados.titulo,
+            descricao=dados.descricao,
+            data=dados.data,
+            usuario_id=usuario.id,
+        )
+        self.repo.criar(nova_ci)
+
+        html_renderizado = self._render_template(
+            numero_ci=numero_ci,
+            titulo=dados.titulo,
+            descricao=dados.descricao,
+            data_str=dados.data.strftime("%d/%m/%Y"),
+            usuario_nome=usuario.nome,
+            usuario_role=usuario.role.value if isinstance(usuario.role, UserRole) else usuario.role,
+        )
+
+        pdf_bytes = HTML(string=html_renderizado).write_pdf()
+        return pdf_bytes
+
+    def gerar_pdf_por_id(self, ci_id: UUID) -> bytes:
+        ci = self.repo.buscar_por_id(ci_id)
+        if not ci:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicação Interna não encontrada.")
+
+        html_renderizado = self._render_template(
+            numero_ci=ci.numero_ci,
+            titulo=ci.titulo,
+            descricao=ci.descricao,
+            data_str=ci.data.strftime("%d/%m/%Y"),
+            usuario_nome=ci.usuario.nome,
+            usuario_role=ci.usuario.role.value if isinstance(ci.usuario.role, UserRole) else ci.usuario.role,
+        )
+
+        pdf_bytes = HTML(string=html_renderizado).write_pdf()
+        return pdf_bytes
+
+    def listar_cis(self, usuario: Usuario) -> list[ComunicacaoInterna]:
+        if usuario.role == UserRole.ADMIN:
+            return self.repo.listar_todas()
+        return self.repo.listar_por_usuario(usuario.id)

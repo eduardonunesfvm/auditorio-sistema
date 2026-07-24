@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, develop]
   push:
-    branches: [master]
+    branches: [master, develop]
 
 jobs:
   test:
@@ -21,10 +21,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar dependencias
+      - name: Instalar dependencias de sistema (WeasyPrint)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libgdk-pixbuf-xlib-2.0-0 libffi-dev shared-mime-info
+
+      - name: Instalar dependencias Python
         run: |
           cd projeto-auditorio
-          pip install -r requirements.txt
+          pip install -r requirements-lock.txt
 
       - name: Rodar testes
         run: |

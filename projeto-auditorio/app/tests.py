@@ -72,6 +72,22 @@ def _criar_usuario(db, nome="Admin", login="admin", senha="123456", role=UserRol
     return usuario
 
 
+def _criar_usuario_com_permissions(db, nome="Admin", login="admin", senha="123456", role=UserRole.SUPERINTENDENTE, permissions=None):
+    if permissions is None:
+        permissions = []
+    usuario = Usuario(
+        nome=nome,
+        login=login,
+        senha_hash=gerar_senha_hash(senha),
+        role=role,
+        permissions=permissions,
+    )
+    db.add(usuario)
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
 def _obter_token(client, login="admin", senha="123456"):
     res = client.post("/auth/login", json={"login": login, "senha": senha})
     assert res.status_code == 200, res.text
@@ -516,7 +532,7 @@ class TestRoleBasedAccess:
             headers=_auth_headers(token),
         )
         assert res.status_code == 403
-        assert "visualizacao" in res.json()["detail"].lower()
+        assert "visualização" in res.json()["detail"].lower()
 
     def test_visualizador_nao_pode_atualizar(self, client, db_session):
         _criar_usuario(db_session, login="admin", role=UserRole.SUPERINTENDENTE)
@@ -543,7 +559,7 @@ class TestRoleBasedAccess:
             headers=_auth_headers(visitante_token),
         )
         assert res.status_code == 403
-        assert "visualizacao" in res.json()["detail"].lower()
+        assert "visualização" in res.json()["detail"].lower()
 
     def test_visualizador_nao_pode_deletar(self, client, db_session):
         _criar_usuario(db_session, login="admin", role=UserRole.SUPERINTENDENTE)
@@ -569,7 +585,7 @@ class TestRoleBasedAccess:
             headers=_auth_headers(visitante_token),
         )
         assert res.status_code == 403
-        assert "visualizacao" in res.json()["detail"].lower()
+        assert "visualização" in res.json()["detail"].lower()
 
     def test_superintendente_pode_criar(self, client, db_session):
         _criar_usuario(db_session, login="sup", role=UserRole.SUPERINTENDENTE)
@@ -625,6 +641,248 @@ class TestRoleBasedAccess:
         assert res.status_code == 201
         data = res.json()
         assert data["role"] == "superintendente"
+
+
+class TestComunicacaoInterna:
+
+    # ── POST /api/v1/ci ──────────────────────────────────────────
+
+    def test_criar_ci_admin_sucesso(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        res = client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "application/pdf"
+
+    def test_criar_ci_superintendente_com_permissao(self, client, db_session):
+        _criar_usuario_com_permissions(db_session, login="sup_ci", permissions=["ci"])
+        token = _obter_token(client, login="sup_ci")
+
+        res = client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "application/pdf"
+
+    def test_criar_ci_superintendente_sem_permissao(self, client, db_session):
+        _criar_usuario(db_session, login="sup_sem")
+        token = _obter_token(client, login="sup_sem")
+
+        res = client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 403
+
+    def test_criar_ci_visualizador_mesmo_com_permissao(self, client, db_session):
+        _criar_usuario_com_permissions(db_session, login="vis_ci", role=UserRole.VISUALIZADOR, permissions=["ci"])
+        token = _obter_token(client, login="vis_ci")
+
+        res = client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 403
+
+    def test_criar_ci_sem_token(self, client, db_session):
+        _criar_usuario(db_session)
+
+        res = client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+        )
+
+        assert res.status_code == 401
+
+    def test_criar_ci_campos_faltando(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        res = client.post(
+            "/api/v1/ci",
+            json={"titulo": "Sem data nem descricao"},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 422
+
+    def test_criar_ci_numero_sequencial(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        r1 = client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI 1", "data": "2026-12-15", "descricao": "Primeira CI"},
+            headers=_auth_headers(token),
+        )
+        assert r1.status_code == 200
+
+        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
+        cis = list_res.json()
+        numeros = sorted([ci["numero_ci"] for ci in cis])
+        assert numeros[0] == 1
+
+        r2 = client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI 2", "data": "2026-12-16", "descricao": "Segunda CI"},
+            headers=_auth_headers(token),
+        )
+        assert r2.status_code == 200
+
+        list_res2 = client.get("/api/v1/ci", headers=_auth_headers(token))
+        cis2 = list_res2.json()
+        numeros2 = sorted([ci["numero_ci"] for ci in cis2])
+        assert numeros2 == [1, 2]
+
+    # ── GET /api/v1/ci ───────────────────────────────────────────
+
+    def test_listar_vazio(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        res = client.get("/api/v1/ci", headers=_auth_headers(token))
+
+        assert res.status_code == 200
+        assert res.json() == []
+
+    def test_listar_com_cis(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Lista", "data": "2026-12-15", "descricao": "Descricao da CI"},
+            headers=_auth_headers(token),
+        )
+
+        res = client.get("/api/v1/ci", headers=_auth_headers(token))
+
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data) == 1
+        assert data[0]["titulo"] == "CI Lista"
+        assert "criador_nome" in data[0]
+        assert data[0]["criador_nome"] != ""
+
+    def test_listar_admin_ve_todas(self, client, db_session):
+        _criar_usuario_com_permissions(db_session, login="user_a", permissions=["ci"])
+        token_a = _obter_token(client, login="user_a")
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A"},
+            headers=_auth_headers(token_a),
+        )
+
+        _criar_usuario(db_session, login="admin_user", role=UserRole.ADMIN)
+        token_admin = _obter_token(client, login="admin_user")
+
+        res = client.get("/api/v1/ci", headers=_auth_headers(token_admin))
+
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data) == 1
+
+    def test_listar_superintendente_ve_apenas_proprias(self, client, db_session):
+        _criar_usuario_com_permissions(db_session, login="user_a", permissions=["ci"])
+        token_a = _obter_token(client, login="user_a")
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A"},
+            headers=_auth_headers(token_a),
+        )
+
+        _criar_usuario_com_permissions(db_session, login="user_b", nome="User B", permissions=["ci"])
+        token_b = _obter_token(client, login="user_b")
+
+        res = client.get("/api/v1/ci", headers=_auth_headers(token_b))
+
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data) == 0
+
+    def test_visualizador_pode_listar(self, client, db_session):
+        _criar_usuario_com_permissions(db_session, login="user_a", permissions=["ci"])
+        token_a = _obter_token(client, login="user_a")
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI 1", "data": "2026-12-15", "descricao": "Desc 1"},
+            headers=_auth_headers(token_a),
+        )
+
+        _criar_usuario(db_session, login="vis", role=UserRole.VISUALIZADOR)
+        token_vis = _obter_token(client, login="vis")
+
+        res = client.get("/api/v1/ci", headers=_auth_headers(token_vis))
+
+        assert res.status_code == 200
+
+    def test_listar_sem_token(self, client, db_session):
+        _criar_usuario(db_session)
+
+        res = client.get("/api/v1/ci")
+
+        assert res.status_code == 401
+
+    # ── GET /api/v1/ci/{id}/pdf ───────────────────────────────────
+
+    def test_baixar_pdf_sucesso(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF"},
+            headers=_auth_headers(token),
+        )
+
+        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
+        ci_id = list_res.json()[0]["id"]
+
+        res = client.get(f"/api/v1/ci/{ci_id}/pdf", headers=_auth_headers(token))
+
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "application/pdf"
+
+    def test_baixar_pdf_inexistente(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        res = client.get(
+            "/api/v1/ci/00000000-0000-0000-0000-000000000000/pdf",
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 404
+
+    def test_baixar_pdf_sem_token(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF"},
+            headers=_auth_headers(token),
+        )
+
+        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
+        ci_id = list_res.json()[0]["id"]
+
+        res = client.get(f"/api/v1/ci/{ci_id}/pdf")
+
+        assert res.status_code == 401
 
 
 class TestHealth:

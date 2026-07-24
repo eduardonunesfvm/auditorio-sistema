@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 2cm;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12pt;
+      color: #000;
+      line-height: 1.6;
+    }
+    .banner {
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto 30px;
+      display: block;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .title {
+      font-size: 16pt;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .subtitle {
+      font-size: 11pt;
+      color: #555;
+    }
+    .numero-ci {
+      font-size: 18pt;
+      font-weight: bold;
+      text-align: center;
+      margin: 30px 0;
+      padding: 10px;
+      border-top: 2px solid #000;
+      border-bottom: 2px solid #000;
+    }
+    .info-row {
+      margin-bottom: 15px;
+    }
+    .info-label {
+      font-weight: bold;
+      display: inline-block;
+      min-width: 80px;
+    }
+    .info-value {
+      display: inline;
+    }
+    .descricao-box {
+      margin: 25px 0;
+      padding: 15px;
+      border: 1px solid #ccc;
+      min-height: 100px;
+    }
+    .descricao-box .label {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .assinatura {
+      margin-top: 80px;
+      text-align: center;
+    }
+    .linha-assinatura {
+      border-top: 1px solid #000;
+      width: 300px;
+      margin: 0 auto 8px;
+      padding-top: 5px;
+    }
+    .assinatura-nome {
+      font-weight: bold;
+      font-size: 12pt;
+    }
+    .assinatura-cargo {
+      font-size: 10pt;
+      color: #555;
+    }
+    .rodape {
+      position: fixed;
+      bottom: -1.5cm;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 8pt;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  {% if banner_src %}<img src="{{ banner_src }}" class="banner" alt="Banner">{% endif %}
+
+  <div class="numero-ci">COMUNICA&Ccedil;&Atilde;O INTERNA N&ordm; {{ numero_ci }}</div>
+
+  <div class="info-row">
+    <span class="info-label">Data:</span>
+    <span class="info-value">{{ data }}</span>
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">T&iacute;tulo:</span>
+    <span class="info-value">{{ titulo }}</span>
+  </div>
+
+  <div class="descricao-box">
+    <div class="label">Descri&ccedil;&atilde;o:</div>
+    <p>{{ descricao }}</p>
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">Emitido por:</span>
+    <span class="info-value">{{ usuario_nome }}</span>
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">Cargo:</span>
+    <span class="info-value">{{ usuario_role }}</span>
+  </div>
+
+  <div class="assinatura">
+    <div class="linha-assinatura"></div>
+    <div class="assinatura-nome">{{ usuario_nome }}</div>
+    <div class="assinatura-cargo">{{ usuario_role }}</div>
+  </div>
+</body>
+</html>

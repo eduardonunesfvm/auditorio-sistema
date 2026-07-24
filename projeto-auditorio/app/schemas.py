@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import date, time
+from datetime import date, time, datetime
 from typing import Optional
 from uuid import UUID
 from app.models import UserRole
@@ -67,3 +67,22 @@ class AgendamentoUpdate(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class ComunicacaoInternaCreate(BaseModel):
+    titulo: str = Field(..., max_length=255, min_length=1)
+    descricao: str = Field(..., min_length=1)
+    data: date
+
+
+class ComunicacaoInternaResponse(BaseModel):
+    id: UUID
+    numero_ci: int
+    titulo: str
+    descricao: str
+    data: date
+    usuario_id: UUID
+    criador_nome: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

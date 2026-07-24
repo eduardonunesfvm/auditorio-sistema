@@ -1,8 +1,8 @@
 import uuid
 from datetime import date
 from sqlalchemy import select, and_, or_
-from sqlalchemy.orm import Session
-from app.models import Agendamento, Usuario
+from sqlalchemy.orm import Session, joinedload
+from app.models import Agendamento, Usuario, ComunicacaoInterna
 from app.schemas import AgendamentoUpdate
 from uuid import UUID
 import datetime as dt
@@ -82,4 +82,36 @@ class AgendamentoRepository:
         self.db.delete(agendamento)
         self.db.commit()
     
+
+class ComunicacaoInternaRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def obter_max_numero_ci(self) -> int | None:
+        from sqlalchemy import func
+        result = self.db.query(func.max(ComunicacaoInterna.numero_ci)).scalar()
+        return result
+
+    def criar(self, ci: ComunicacaoInterna) -> ComunicacaoInterna:
+        self.db.add(ci)
+        self.db.commit()
+        self.db.refresh(ci)
+        return ci
+
+    def buscar_por_id(self, ci_id: UUID) -> ComunicacaoInterna | None:
+        return self.db.query(ComunicacaoInterna).options(
+            joinedload(ComunicacaoInterna.usuario)
+        ).filter(ComunicacaoInterna.id == ci_id).first()
+
+    def listar_por_usuario(self, usuario_id: UUID) -> list[ComunicacaoInterna]:
+        return self.db.query(ComunicacaoInterna).options(
+            joinedload(ComunicacaoInterna.usuario)
+        ).filter(
+            ComunicacaoInterna.usuario_id == usuario_id
+        ).order_by(ComunicacaoInterna.created_at.desc()).all()
+
+    def listar_todas(self) -> list[ComunicacaoInterna]:
+        return self.db.query(ComunicacaoInterna).options(
+            joinedload(ComunicacaoInterna.usuario)
+        ).order_by(ComunicacaoInterna.created_at.desc()).all()
 
