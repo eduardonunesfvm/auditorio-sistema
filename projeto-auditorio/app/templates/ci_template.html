@@ -7,11 +7,7 @@
       size: A4;
       margin: 2cm;
     }
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: Arial, Helvetica, sans-serif;
       font-size: 12pt;
@@ -24,19 +20,6 @@
       margin: 0 auto 30px;
       display: block;
     }
-    .header {
-      text-align: center;
-      margin-bottom: 40px;
-    }
-    .title {
-      font-size: 16pt;
-      font-weight: bold;
-      margin-bottom: 5px;
-    }
-    .subtitle {
-      font-size: 11pt;
-      color: #555;
-    }
     .numero-ci {
       font-size: 18pt;
       font-weight: bold;
@@ -47,12 +30,12 @@
       border-bottom: 2px solid #000;
     }
     .info-row {
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
     .info-label {
       font-weight: bold;
       display: inline-block;
-      min-width: 80px;
+      min-width: 60px;
     }
     .info-value {
       display: inline;
@@ -61,19 +44,38 @@
       margin: 25px 0;
       padding: 15px;
       border: 1px solid #ccc;
-      min-height: 100px;
     }
     .descricao-box .label {
       font-weight: bold;
       margin-bottom: 8px;
     }
+    .descricao-box table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0;
+    }
+    .descricao-box table td, .descricao-box table th {
+      border: 1px solid #999;
+      padding: 6px 8px;
+    }
+    .descricao-box table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+    .descricao-box ul, .descricao-box ol {
+      padding-left: 20px;
+    }
+    .fechamento {
+      margin-top: 40px;
+      text-align: justify;
+    }
     .assinatura {
-      margin-top: 80px;
+      margin-top: 60px;
       text-align: center;
     }
     .linha-assinatura {
       border-top: 1px solid #000;
-      width: 300px;
+      width: 350px;
       margin: 0 auto 8px;
       padding-top: 5px;
     }
@@ -83,23 +85,40 @@
     }
     .assinatura-cargo {
       font-size: 10pt;
+      color: #444;
+      margin-bottom: 4px;
+    }
+    .assinatura-decreto {
+      font-size: 9pt;
       color: #555;
     }
-    .rodape {
-      position: fixed;
-      bottom: -1.5cm;
-      left: 0;
-      right: 0;
-      text-align: center;
-      font-size: 8pt;
+    .carimbo {
+      margin: 15px auto 0;
+      width: 200px;
+      height: 60px;
+      border: 1px dashed #999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9pt;
       color: #999;
+    }
+    .recebimento {
+      margin-top: 50px;
+      font-size: 10pt;
+    }
+    .recebimento .linha-recebimento {
+      border-top: 1px solid #000;
+      width: 350px;
+      margin-top: 20px;
+      padding-top: 4px;
     }
   </style>
 </head>
 <body>
   {% if banner_src %}<img src="{{ banner_src }}" class="banner" alt="Banner">{% endif %}
 
-  <div class="numero-ci">COMUNICA&Ccedil;&Atilde;O INTERNA N&ordm; {{ numero_ci }}</div>
+  <div class="numero-ci">COMUNICACAO INTERNA{% if is_solicitacao %} - SOLICITACAO DE MATERIAL{% endif %} N&ordm; {{ numero_ci }}</div>
 
   <div class="info-row">
     <span class="info-label">Data:</span>
@@ -107,29 +126,48 @@
   </div>
 
   <div class="info-row">
-    <span class="info-label">T&iacute;tulo:</span>
+    <span class="info-label">De:</span>
+    <span class="info-value">{{ de }}</span>
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">Para:</span>
+    <span class="info-value">{{ para }}</span>
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">Titulo:</span>
     <span class="info-value">{{ titulo }}</span>
   </div>
 
   <div class="descricao-box">
-    <div class="label">Descri&ccedil;&atilde;o:</div>
-    <p>{{ descricao }}</p>
+    <div class="label">Descricao:</div>
+    {{ descricao | safe }}
   </div>
 
-  <div class="info-row">
-    <span class="info-label">Emitido por:</span>
-    <span class="info-value">{{ usuario_nome }}</span>
+  <div class="fechamento">
+    Sendo o que tenho para o momento, desde ja agradeco a vossa valorosa e prestimosa atencao.
   </div>
 
-  <div class="info-row">
-    <span class="info-label">Cargo:</span>
-    <span class="info-value">{{ usuario_role }}</span>
-  </div>
-
+  {% if is_solicitacao %}
   <div class="assinatura">
     <div class="linha-assinatura"></div>
-    <div class="assinatura-nome">{{ usuario_nome }}</div>
-    <div class="assinatura-cargo">{{ usuario_role }}</div>
+    <div class="assinatura-nome">Erika Siqueira Souza Battistelli</div>
+    <div class="assinatura-cargo">Superintendente de Gestao, Educacao, Humanizacao em saude</div>
+    <div class="assinatura-decreto">Decreto n&ordm; 340, de 16/07/2025</div>
+    <div class="carimbo">Espaco para carimbo</div>
   </div>
+
+  <div class="recebimento">
+    <div>Recebimento em: _____/_____/______</div>
+    <div class="linha-recebimento">Assinatura e carimbo (ou nome completo): _______________________________</div>
+  </div>
+  {% else %}
+  <div class="assinatura">
+    <div class="linha-assinatura"></div>
+    <div class="assinatura-nome">{{ nome_signatario }} {{ sobrenome_signatario }}</div>
+    <div class="assinatura-cargo">{{ cargo_signatario }}</div>
+  </div>
+  {% endif %}
 </body>
 </html>
