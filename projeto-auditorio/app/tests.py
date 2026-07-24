@@ -884,6 +884,71 @@ class TestComunicacaoInterna:
 
         assert res.status_code == 401
 
+    # ── PUT /api/v1/ci/{id} ─────────────────────────────────────
+
+    def test_atualizar_ci_sucesso(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Original", "data": "2026-12-15", "descricao": "Original"},
+            headers=_auth_headers(token),
+        )
+
+        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
+        ci_id = list_res.json()[0]["id"]
+
+        res = client.put(
+            f"/api/v1/ci/{ci_id}",
+            json={"titulo": "CI Atualizada", "descricao": "Nova descricao"},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "application/pdf"
+
+        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
+        data = list_res.json()
+        assert data[0]["titulo"] == "CI Atualizada"
+        assert data[0]["numero_ci"] == 1
+
+    def test_atualizar_ci_inexistente(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token = _obter_token(client)
+
+        res = client.put(
+            "/api/v1/ci/00000000-0000-0000-0000-000000000000",
+            json={"titulo": "Nao existe"},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 404
+
+    def test_atualizar_ci_sem_permissao(self, client, db_session):
+        _criar_usuario(db_session, role=UserRole.ADMIN)
+        token_admin = _obter_token(client)
+
+        client.post(
+            "/api/v1/ci",
+            json={"titulo": "CI Admin", "data": "2026-12-15", "descricao": "Desc"},
+            headers=_auth_headers(token_admin),
+        )
+
+        list_res = client.get("/api/v1/ci", headers=_auth_headers(token_admin))
+        ci_id = list_res.json()[0]["id"]
+
+        _criar_usuario(db_session, login="sup_sem")
+        token_sem = _obter_token(client, login="sup_sem")
+
+        res = client.put(
+            f"/api/v1/ci/{ci_id}",
+            json={"titulo": "Tentativa de Edicao"},
+            headers=_auth_headers(token_sem),
+        )
+
+        assert res.status_code == 403
+
 
 class TestHealth:
     def test_health_check(self, client):

@@ -2,7 +2,7 @@ import uuid
 from fastapi import HTTPException, status
 from fastapi.responses import Response
 from app.repository import AgendamentoRepository, UsuarioRepository, ComunicacaoInternaRepository
-from app.schemas import AgendamentoCreate, UsuarioCreate, AgendamentoUpdate, ComunicacaoInternaCreate
+from app.schemas import AgendamentoCreate, UsuarioCreate, AgendamentoUpdate, ComunicacaoInternaCreate, ComunicacaoInternaUpdate
 from app.models import Agendamento, Usuario, UserRole, ComunicacaoInterna
 from app.security import verificar_senha, criar_token_acesso, gerar_senha_hash
 from uuid import UUID
@@ -195,6 +195,25 @@ class ComunicacaoInternaService:
             data_str=ci.data.strftime("%d/%m/%Y"),
             usuario_nome=ci.usuario.nome,
             usuario_role=ci.usuario.role.value if isinstance(ci.usuario.role, UserRole) else ci.usuario.role,
+        )
+
+        pdf_bytes = HTML(string=html_renderizado).write_pdf()
+        return pdf_bytes
+
+    def atualizar_ci(self, ci_id: UUID, dados: ComunicacaoInternaUpdate, usuario: Usuario) -> bytes:
+        ci = self.repo.buscar_por_id(ci_id)
+        if not ci:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicação Interna não encontrada.")
+
+        self.repo.atualizar(ci, dados)
+
+        html_renderizado = self._render_template(
+            numero_ci=ci.numero_ci,
+            titulo=ci.titulo,
+            descricao=ci.descricao,
+            data_str=ci.data.strftime("%d/%m/%Y"),
+            usuario_nome=usuario.nome,
+            usuario_role=usuario.role.value if isinstance(usuario.role, UserRole) else usuario.role,
         )
 
         pdf_bytes = HTML(string=html_renderizado).write_pdf()

@@ -86,3 +86,9 @@ class ComunicacaoInternaResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ComunicacaoInternaUpdate(BaseModel):
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    data: Optional[date] = None
