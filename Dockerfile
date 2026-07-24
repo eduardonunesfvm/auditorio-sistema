@@ -12,7 +12,6 @@ RUN pip install --no-cache-dir -r requirements-lock.txt
 
 COPY projeto-auditorio/ .
 COPY auditorio-front/ static/
-COPY docs/ /docs/
 
 RUN chmod +x entrypoint.sh
 

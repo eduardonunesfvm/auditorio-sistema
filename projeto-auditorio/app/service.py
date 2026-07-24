@@ -131,9 +131,7 @@ class ComunicacaoInternaService:
         self.repo = repo
         template_dir = os.path.join(os.path.dirname(__file__), "templates")
         self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
-        banner_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "docs", "secretariabanner.png")
-        )
+        banner_path = os.path.join(template_dir, "secretariabanner.png")
         self.banner_src = self._load_banner_base64(banner_path)
 
     def _load_banner_base64(self, path: str) -> str:
