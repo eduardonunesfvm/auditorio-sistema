@@ -24,7 +24,7 @@ jobs:
       - name: Instalar dependencias de sistema (WeasyPrint)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info
+          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libgdk-pixbuf-xlib-2.0-0 libffi-dev shared-mime-info
 
       - name: Instalar dependencias Python
         run: |
