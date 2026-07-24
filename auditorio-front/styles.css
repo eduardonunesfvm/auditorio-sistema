@@ -443,6 +443,11 @@ body {
   border: 1px solid var(--border) !important;
 }
 
+.jodit-toolbar__box {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
 .form-actions {
   display: flex;
   flex-direction: column;

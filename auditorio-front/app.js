@@ -578,7 +578,7 @@ function initCIEditor() {
   if (!ta || typeof Jodit === "undefined") return;
   ciEditor = Jodit.make(ta, {
     toolbarButtonSize: "small",
-    buttons: "bold,italic,underline,|,ul,ol,|,table,link,|,undo,redo",
+    buttons: "bold,italic,underline,|,ul,ol,|,table,link,|,undo,redo,|,fullsize",
     disablePlugins: "speech-recognize",
     height: 250,
     showCharsCounter: false,
@@ -586,6 +586,12 @@ function initCIEditor() {
     showXPathInStatusbar: false,
   });
   ciEditorInited = true;
+
+  document.addEventListener("keydown", function escExit(e) {
+    if (e.key === "Escape" && ciEditor && ciEditor.container && ciEditor.container.classList.contains("jodit_fullsize")) {
+      ciEditor.toggleFullSize(false);
+    }
+  });
 }
 
 function toggleSignatarioFields() {
