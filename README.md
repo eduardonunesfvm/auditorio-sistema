@@ -49,7 +49,7 @@ Sistema web full-stack desenvolvido para a Secretaria de Saúde — gerenciament
 |---|---|
 | Backend | Python 3.11, FastAPI, Uvicorn |
 | Frontend | HTML5, CSS3, JavaScript (vanilla, 950 linhas) |
-| Banco | PostgreSQL (Neon, serverless) |
+| Banco | PostgreSQL (Railway, serverless) |
 | ORM | SQLAlchemy 2.0 |
 | Migrações | Alembic |
 | Autenticação | JWT (PyJWT) + bcrypt (passlib) |
@@ -59,7 +59,7 @@ Sistema web full-stack desenvolvido para a Secretaria de Saúde — gerenciament
 | Containerização | Docker, Docker Compose |
 | Proxy reverso | Nginx (cache-busting) |
 | CI/CD | GitHub Actions (test + build → Railway) |
-| Infraestrutura | Railway (PaaS) + Neon PostgreSQL (DBaaS) |
+| Infraestrutura | Railway (PaaS) + Railway PostgreSQL (DBaaS) |
 | Domínio | sistemanephs.com.br |
 
 ---
@@ -87,7 +87,7 @@ Sistema web full-stack desenvolvido para a Secretaria de Saúde — gerenciament
 └─────────────────────────────────┼───────────────┘
                                   │
                          ┌────────▼────────┐
-                         │  Neon PostgreSQL │
+                         │  Railway PostgreSQL │
                          │  (serverless)    │
                          └─────────────────┘
 ```
@@ -290,7 +290,7 @@ pytest app/tests.py -v
 | Recurso | Provedor | Plano |
 |---|---|---|
 | Aplicação | Railway | Hobby |
-| Banco de dados | Neon PostgreSQL | Free (0.5 GB) |
+| Banco de dados | Railway PostgreSQL | Free (0.5 GB) |
 | Domínio | Registro.br | sistemanephs.com.br |
 | CI/CD | GitHub Actions | Free |
 
