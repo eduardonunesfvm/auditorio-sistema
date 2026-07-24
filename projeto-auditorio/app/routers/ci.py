@@ -7,7 +7,7 @@ from typing import List
 from ..database import get_db
 from ..dependencies import obter_usuario_atual, check_ci_access
 from ..models import Usuario
-from ..schemas import ComunicacaoInternaCreate, ComunicacaoInternaResponse
+from ..schemas import ComunicacaoInternaCreate, ComunicacaoInternaResponse, ComunicacaoInternaUpdate
 from ..repository import ComunicacaoInternaRepository
 from ..service import ComunicacaoInternaService
 
@@ -51,6 +51,24 @@ def baixar_ci_pdf(
     repo = ComunicacaoInternaRepository(db)
     service = ComunicacaoInternaService(repo)
     pdf_bytes = service.gerar_pdf_por_id(ci_id)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=CI_{ci_id}.pdf"},
+    )
+
+
+@router.put("/{ci_id}")
+def atualizar_ci(
+    ci_id: UUID,
+    payload: ComunicacaoInternaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(check_ci_access),
+):
+    repo = ComunicacaoInternaRepository(db)
+    service = ComunicacaoInternaService(repo)
+    pdf_bytes = service.atualizar_ci(ci_id, payload, current_user)
 
     return Response(
         content=pdf_bytes,

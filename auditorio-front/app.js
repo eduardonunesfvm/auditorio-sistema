@@ -633,6 +633,7 @@ function renderTabelaCIs(cis) {
         '<td>' + formatDate(ci.data) + '</td>' +
         '<td>' + escapeHtml(ci.criador_nome || ci.usuario_id) + '</td>' +
         '<td class="td-actions">' +
+          '<button class="btn btn-sm btn-edit editar-ci-btn" data-id="' + ci.id + '" title="Editar">Editar</button>' +
           '<button class="btn btn-sm btn-edit baixar-ci-btn" data-id="' + ci.id + '" title="Baixar PDF">PDF</button>' +
         '</td>' +
       '</tr>';
@@ -678,6 +679,7 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
   var titulo = document.getElementById("ci-titulo").value.trim();
   var data = document.getElementById("ci-data").value;
   var descricao = document.getElementById("ci-descricao").value.trim();
+  var editId = document.getElementById("ci-editing-id").value;
 
   if (!titulo || !data || !descricao) {
     showFeedback(feedback, "Preencha todos os campos.", "error");
@@ -687,31 +689,42 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
   var btn = document.getElementById("ci-btn");
   setButtonLoading(btn, true);
 
+  var isEditing = !!editId;
+  var method = isEditing ? "PUT" : "POST";
+  var url = isEditing
+    ? API_URL + "/api/v1/ci/" + encodeURIComponent(editId)
+    : API_URL + "/api/v1/ci";
+
+  var body = { titulo: titulo, data: data, descricao: descricao };
+
   try {
-    var res = await fetch(API_URL + "/api/v1/ci", {
-      method: "POST",
+    var res = await fetch(url, {
+      method: method,
       headers: apiHeaders(),
-      body: JSON.stringify({ titulo: titulo, data: data, descricao: descricao }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
       handleAuthError(res.status);
       var errData = await res.json().catch(function () { return null; });
-      throw new Error(errData?.detail || "Erro ao gerar CI.");
+      throw new Error(errData?.detail || "Erro ao processar CI.");
     }
 
     var blob = await res.blob();
-    var url = URL.createObjectURL(blob);
+    var downloadUrl = URL.createObjectURL(blob);
     var a = document.createElement("a");
-    a.href = url;
+    a.href = downloadUrl;
     a.download = "CI_" + titulo.substring(0, 30) + ".pdf";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(downloadUrl);
 
-    showFeedback(feedback, "CI gerada com sucesso!", "success");
+    showFeedback(feedback, isEditing ? "CI atualizada com sucesso!" : "CI gerada com sucesso!", "success");
     document.getElementById("ci-form").reset();
+    document.getElementById("ci-editing-id").value = "";
+    document.getElementById("ci-btn").textContent = "Gerar e Baixar CI";
+    document.getElementById("ci-cancel-edit-btn").style.display = "none";
     loadCIs();
   } catch (err) {
     showFeedback(feedback, err.message, "error");
@@ -721,6 +734,13 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
 });
 
 document.getElementById("tabela-cis-body").addEventListener("click", async function (e) {
+  var editBtn = e.target.closest(".editar-ci-btn");
+  if (editBtn) {
+    var ciId = editBtn.getAttribute("data-id");
+    if (ciId) preencherFormularioEdicaoCI(ciId);
+    return;
+  }
+
   var btn = e.target.closest(".baixar-ci-btn");
   if (!btn) return;
   var ciId = btn.getAttribute("data-id");
@@ -745,6 +765,43 @@ document.getElementById("tabela-cis-body").addEventListener("click", async funct
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+});
+
+function preencherFormularioEdicaoCI(ciId) {
+  var ci = null;
+  for (var i = 0; i < cisCache.length; i++) {
+    if (cisCache[i].id === ciId) {
+      ci = cisCache[i];
+      break;
+    }
+  }
+
+  if (!ci) {
+    showAlertModal("Comunicação Interna não encontrada.");
+    return;
+  }
+
+  document.getElementById("ci-editing-id").value = ci.id;
+  document.getElementById("ci-titulo").value = ci.titulo || "";
+  document.getElementById("ci-data").value = ci.data || "";
+  document.getElementById("ci-descricao").value = ci.descricao || "";
+
+  document.getElementById("ci-btn").textContent = "Salvar Alterações";
+  document.getElementById("ci-cancel-edit-btn").style.display = "inline-flex";
+  document.getElementById("ci-feedback").textContent = "";
+  document.getElementById("ci-feedback").className = "feedback";
+  document.getElementById("ci-titulo").focus();
+  document.getElementById("ci-form").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+document.getElementById("ci-cancel-edit-btn").addEventListener("click", function () {
+  document.getElementById("ci-editing-id").value = "";
+  document.getElementById("ci-form").reset();
+  document.getElementById("ci-btn").textContent = "Gerar e Baixar CI";
+  document.getElementById("ci-cancel-edit-btn").style.display = "none";
+  var feedback = document.getElementById("ci-feedback");
+  feedback.textContent = "";
+  feedback.className = "feedback";
 });
 
 var buscaCIsInput = document.getElementById("busca-cis");

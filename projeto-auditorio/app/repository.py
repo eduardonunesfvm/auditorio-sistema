@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.models import Agendamento, Usuario, ComunicacaoInterna
-from app.schemas import AgendamentoUpdate
+from app.schemas import AgendamentoUpdate, ComunicacaoInternaUpdate
 from uuid import UUID
 import datetime as dt
 from datetime import datetime
@@ -114,4 +114,11 @@ class ComunicacaoInternaRepository:
         return self.db.query(ComunicacaoInterna).options(
             joinedload(ComunicacaoInterna.usuario)
         ).order_by(ComunicacaoInterna.created_at.desc()).all()
+
+    def atualizar(self, ci: ComunicacaoInterna, dados: ComunicacaoInternaUpdate) -> ComunicacaoInterna:
+        for campo, valor in dados.model_dump(exclude_unset=True).items():
+            setattr(ci, campo, valor)
+        self.db.commit()
+        self.db.refresh(ci)
+        return ci
 
