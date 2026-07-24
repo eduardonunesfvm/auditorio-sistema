@@ -653,7 +653,7 @@ class TestComunicacaoInterna:
 
         res = client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -666,7 +666,7 @@ class TestComunicacaoInterna:
 
         res = client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -679,7 +679,7 @@ class TestComunicacaoInterna:
 
         res = client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -691,7 +691,7 @@ class TestComunicacaoInterna:
 
         res = client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -702,7 +702,7 @@ class TestComunicacaoInterna:
 
         res = client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
         )
 
         assert res.status_code == 401
@@ -725,7 +725,7 @@ class TestComunicacaoInterna:
 
         r1 = client.post(
             "/api/v1/ci",
-            json={"titulo": "CI 1", "data": "2026-12-15", "descricao": "Primeira CI"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI 1", "data": "2026-12-15", "descricao": "Primeira CI", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
         assert r1.status_code == 200
@@ -737,7 +737,7 @@ class TestComunicacaoInterna:
 
         r2 = client.post(
             "/api/v1/ci",
-            json={"titulo": "CI 2", "data": "2026-12-16", "descricao": "Segunda CI"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI 2", "data": "2026-12-16", "descricao": "Segunda CI", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
         assert r2.status_code == 200
@@ -764,7 +764,7 @@ class TestComunicacaoInterna:
 
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Lista", "data": "2026-12-15", "descricao": "Descricao da CI"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Lista", "data": "2026-12-15", "descricao": "Descricao da CI", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -782,7 +782,7 @@ class TestComunicacaoInterna:
         token_a = _obter_token(client, login="user_a")
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token_a),
         )
 
@@ -800,7 +800,7 @@ class TestComunicacaoInterna:
         token_a = _obter_token(client, login="user_a")
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token_a),
         )
 
@@ -818,7 +818,7 @@ class TestComunicacaoInterna:
         token_a = _obter_token(client, login="user_a")
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI 1", "data": "2026-12-15", "descricao": "Desc 1"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI 1", "data": "2026-12-15", "descricao": "Desc 1", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token_a),
         )
 
@@ -844,7 +844,7 @@ class TestComunicacaoInterna:
 
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -873,7 +873,7 @@ class TestComunicacaoInterna:
 
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -892,7 +892,7 @@ class TestComunicacaoInterna:
 
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Original", "data": "2026-12-15", "descricao": "Original"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Original", "data": "2026-12-15", "descricao": "Original", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token),
         )
 
@@ -931,7 +931,7 @@ class TestComunicacaoInterna:
 
         client.post(
             "/api/v1/ci",
-            json={"titulo": "CI Admin", "data": "2026-12-15", "descricao": "Desc"},
+            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Admin", "data": "2026-12-15", "descricao": "Desc", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
             headers=_auth_headers(token_admin),
         )
 
