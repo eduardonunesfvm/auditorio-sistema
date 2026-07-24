@@ -57,9 +57,15 @@ class ComunicacaoInterna(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     numero_ci: Mapped[int] = mapped_column(Integer, nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False, default="comunicacao_interna")
+    de: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    para: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     titulo: Mapped[str] = mapped_column(String(255), nullable=False)
     descricao: Mapped[str] = mapped_column(Text, nullable=False)
     data: Mapped[date] = mapped_column(Date, nullable=False)
+    nome_signatario: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    sobrenome_signatario: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    cargo_signatario: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     usuario_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
