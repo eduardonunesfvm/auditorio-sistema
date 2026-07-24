@@ -146,7 +146,6 @@ body {
 .ci-container {
   position: relative;
   height: 100%;
-  overflow: hidden;
 }
 
 .ci-disabled-overlay {
@@ -437,6 +436,16 @@ body {
 
 .form-group.full-width {
   flex: 1 1 100%;
+}
+
+.jodit-container {
+  border-radius: var(--radius) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.jodit-toolbar__box {
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .form-actions {
