@@ -569,26 +569,23 @@ buscaInput.addEventListener("input", function () {
 
 var cisCache = [];
 
-var ciTinyInited = false;
+var ciEditor = null;
+var ciEditorInited = false;
 
-function initTinyMCE() {
-  if (ciTinyInited) return;
+function initCIEditor() {
+  if (ciEditorInited) return;
   var ta = document.getElementById("ci-descricao");
-  if (!ta || typeof tinymce === "undefined") return;
-  tinymce.init({
-    target: ta,
-    plugins: "table lists link",
-    toolbar: "bold italic underline | bullist numlist | table | undo redo",
-    menubar: false,
-    statusbar: false,
+  if (!ta || typeof Jodit === "undefined") return;
+  ciEditor = Jodit.make(ta, {
+    toolbarButtonSize: "small",
+    buttons: "bold,italic,underline,|,ul,ol,|,table,link,|,undo,redo",
+    disablePlugins: "speech-recognize",
     height: 250,
-    setup: function (ed) {
-      ed.on("change", function () {
-        ed.save();
-      });
-    },
+    showCharsCounter: false,
+    showWordsCounter: false,
+    showXPathInStatusbar: false,
   });
-  ciTinyInited = true;
+  ciEditorInited = true;
 }
 
 function toggleSignatarioFields() {
@@ -604,16 +601,14 @@ function toggleSignatarioFields() {
   if (cargo) cargo.required = isCI;
 }
 
-function getCITinyContent() {
-  if (typeof tinymce !== "undefined" && tinymce.get("ci-descricao")) {
-    return tinymce.get("ci-descricao").getContent();
-  }
+function getCIEditorContent() {
+  if (ciEditor) return ciEditor.value;
   return document.getElementById("ci-descricao").value;
 }
 
-function setCITinyContent(html) {
-  if (typeof tinymce !== "undefined" && tinymce.get("ci-descricao")) {
-    tinymce.get("ci-descricao").setContent(html || "");
+function setCIEditorContent(html) {
+  if (ciEditor) {
+    ciEditor.value = html || "";
   } else {
     document.getElementById("ci-descricao").value = html || "";
   }
@@ -625,7 +620,7 @@ function resetCIForm() {
   document.getElementById("ci-tipo").value = "comunicacao_interna";
   document.getElementById("ci-btn").textContent = "Gerar e Baixar CI";
   document.getElementById("ci-cancel-edit-btn").style.display = "none";
-  setCITinyContent("");
+  setCIEditorContent("");
   toggleSignatarioFields();
   var feedback = document.getElementById("ci-feedback");
   feedback.textContent = "";
@@ -648,7 +643,7 @@ function switchTab(tabName) {
   if (tabName === "ci") {
     atualizarEstadoCI();
     loadCIs();
-    setTimeout(initTinyMCE, 100);
+    setTimeout(initCIEditor, 100);
   }
 }
 
@@ -759,7 +754,7 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
   var para = document.getElementById("ci-para").value.trim();
   var titulo = document.getElementById("ci-titulo").value.trim();
   var data = document.getElementById("ci-data").value;
-  var descricao = getCITinyContent();
+  var descricao = getCIEditorContent();
   var nomeSignatario = document.getElementById("ci-nome").value.trim();
   var sobrenomeSignatario = document.getElementById("ci-sobrenome").value.trim();
   var cargoSignatario = document.getElementById("ci-cargo").value.trim();
@@ -898,7 +893,7 @@ function preencherFormularioEdicaoCI(ciId) {
   toggleSignatarioFields();
 
   setTimeout(function () {
-    setCITinyContent(ci.descricao || "");
+    setCIEditorContent(ci.descricao || "");
   }, 200);
 
   document.getElementById("ci-btn").textContent = "Salvar Alteracoes";

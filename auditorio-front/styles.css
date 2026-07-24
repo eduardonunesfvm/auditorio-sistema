@@ -439,7 +439,7 @@ body {
   flex: 1 1 100%;
 }
 
-.tox-tinymce {
+.jodit-container {
   border-radius: var(--radius) !important;
   border: 1px solid var(--border) !important;
 }
