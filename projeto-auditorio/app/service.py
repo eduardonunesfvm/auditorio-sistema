@@ -127,6 +127,12 @@ class AuthService:
 
 
 class ComunicacaoInternaService:
+    ERIKA = {
+        "nome": "Erika Siqueira Souza Battistelli",
+        "cargo": "Superintendente de Gestão, Educação, Humanização em saúde",
+        "decreto": "Decreto nº 340, de 16/07/2025",
+    }
+
     def __init__(self, repo: ComunicacaoInternaRepository):
         self.repo = repo
         template_dir = os.path.join(os.path.dirname(__file__), "templates")
@@ -142,16 +148,21 @@ class ComunicacaoInternaService:
         except Exception:
             return ""
 
-    def _render_template(self, numero_ci: int, titulo: str, descricao: str, data_str: str, usuario_nome: str, usuario_role: str) -> str:
+    def _render_template(self, numero_ci: int, tipo: str, de: str, para: str, titulo: str, descricao: str, data_str: str, nome_signatario: str, sobrenome_signatario: str, cargo_signatario: str) -> str:
         template = self.jinja_env.get_template("ci_template.html")
+        is_solicitacao = tipo == "solicitacao_material"
         return template.render(
             banner_src=self.banner_src,
             numero_ci=numero_ci,
+            is_solicitacao=is_solicitacao,
+            de=de,
+            para=para,
             titulo=titulo,
             descricao=descricao,
             data=data_str,
-            usuario_nome=usuario_nome,
-            usuario_role=usuario_role,
+            nome_signatario=nome_signatario or "",
+            sobrenome_signatario=sobrenome_signatario or "",
+            cargo_signatario=cargo_signatario or "",
         )
 
     def _calcular_proximo_numero(self) -> int:
@@ -164,20 +175,30 @@ class ComunicacaoInternaService:
 
         nova_ci = ComunicacaoInterna(
             numero_ci=numero_ci,
+            tipo=dados.tipo,
+            de=dados.de,
+            para=dados.para,
             titulo=dados.titulo,
             descricao=dados.descricao,
             data=dados.data,
+            nome_signatario=dados.nome_signatario,
+            sobrenome_signatario=dados.sobrenome_signatario,
+            cargo_signatario=dados.cargo_signatario,
             usuario_id=usuario.id,
         )
         self.repo.criar(nova_ci)
 
         html_renderizado = self._render_template(
             numero_ci=numero_ci,
-            titulo=dados.titulo,
-            descricao=dados.descricao,
-            data_str=dados.data.strftime("%d/%m/%Y"),
-            usuario_nome=usuario.nome,
-            usuario_role=usuario.role.value if isinstance(usuario.role, UserRole) else usuario.role,
+            tipo=nova_ci.tipo,
+            de=nova_ci.de,
+            para=nova_ci.para,
+            titulo=nova_ci.titulo,
+            descricao=nova_ci.descricao,
+            data_str=nova_ci.data.strftime("%d/%m/%Y"),
+            nome_signatario=nova_ci.nome_signatario or "",
+            sobrenome_signatario=nova_ci.sobrenome_signatario or "",
+            cargo_signatario=nova_ci.cargo_signatario or "",
         )
 
         pdf_bytes = HTML(string=html_renderizado).write_pdf()
@@ -190,11 +211,15 @@ class ComunicacaoInternaService:
 
         html_renderizado = self._render_template(
             numero_ci=ci.numero_ci,
+            tipo=ci.tipo,
+            de=ci.de,
+            para=ci.para,
             titulo=ci.titulo,
             descricao=ci.descricao,
             data_str=ci.data.strftime("%d/%m/%Y"),
-            usuario_nome=ci.usuario.nome,
-            usuario_role=ci.usuario.role.value if isinstance(ci.usuario.role, UserRole) else ci.usuario.role,
+            nome_signatario=ci.nome_signatario or "",
+            sobrenome_signatario=ci.sobrenome_signatario or "",
+            cargo_signatario=ci.cargo_signatario or "",
         )
 
         pdf_bytes = HTML(string=html_renderizado).write_pdf()
@@ -209,11 +234,15 @@ class ComunicacaoInternaService:
 
         html_renderizado = self._render_template(
             numero_ci=ci.numero_ci,
+            tipo=ci.tipo,
+            de=ci.de,
+            para=ci.para,
             titulo=ci.titulo,
             descricao=ci.descricao,
             data_str=ci.data.strftime("%d/%m/%Y"),
-            usuario_nome=usuario.nome,
-            usuario_role=usuario.role.value if isinstance(usuario.role, UserRole) else usuario.role,
+            nome_signatario=ci.nome_signatario or "",
+            sobrenome_signatario=ci.sobrenome_signatario or "",
+            cargo_signatario=ci.cargo_signatario or "",
         )
 
         pdf_bytes = HTML(string=html_renderizado).write_pdf()

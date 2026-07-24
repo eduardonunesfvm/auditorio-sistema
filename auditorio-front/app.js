@@ -210,7 +210,7 @@ modalOverlay.addEventListener("click", function (e) {
 
 function renderProximoEvento(evento) {
   if (!evento) {
-    proximoEventoContent.innerHTML = '<p class="empty-state">Nenhum evento proximo agendado.</p>';
+    proximoEventoContent.innerHTML = '<p class="empty-state">Nenhum evento próximo agendado.</p>';
     return;
   }
 
@@ -225,7 +225,7 @@ function renderProximoEvento(evento) {
         '<span class="detail-value">' + formatDate(evento.data_evento) + '</span>' +
       '</div>' +
       '<div class="detail-item">' +
-        '<span class="detail-label">Horario</span>' +
+        '<span class="detail-label">Horário</span>' +
         '<span class="detail-value">' + formatTime(evento.hora_inicio) + ' - ' + formatTime(evento.hora_fim) + '</span>' +
       '</div>' +
       '<div class="detail-item">' +
@@ -378,7 +378,7 @@ loginForm.addEventListener("submit", async function (e) {
     var token = data.access_token;
 
     if (!token) {
-      throw new Error("Token nao recebido do servidor.");
+      throw new Error("Token não recebido do servidor.");
     }
 
     setToken(token);
@@ -425,18 +425,18 @@ agendamentoForm.addEventListener("submit", async function (e) {
   var editId = editingId.value;
 
   if (!nomeEvento || !dataEvento || !horaInicio || !horaFim) {
-    showFeedback(agendamentoFeedback, "Preencha todos os campos obrigatorios.", "error");
+    showFeedback(agendamentoFeedback, "Preencha todos os campos obrigatórios.", "error");
     return;
   }
 
   if (horaFim <= horaInicio) {
-    showFeedback(agendamentoFeedback, "A hora do fim deve ser posterior a hora de inicio.", "error");
+    showFeedback(agendamentoFeedback, "A hora do fim deve ser posterior à hora de início.", "error");
     return;
   }
 
   var token = getToken();
   if (!token) {
-    showFeedback(agendamentoFeedback, "Sessao expirada. Faca login novamente.", "error");
+    showFeedback(agendamentoFeedback, "Sessão expirada. Faça login novamente.", "error");
     setTimeout(function () {
       clearToken();
       showLogin();
@@ -507,7 +507,7 @@ function preencherFormularioEdicao(id) {
   }
 
   if (!ev) {
-    showFeedback(agendamentoFeedback, "Agendamento nao encontrado.", "error");
+    showFeedback(agendamentoFeedback, "Agendamento não encontrado.", "error");
     return;
   }
 
@@ -519,7 +519,7 @@ function preencherFormularioEdicao(id) {
   document.getElementById("qtd-participantes").value = ev.quantidade_participantes != null ? ev.quantidade_participantes : "";
   document.getElementById("observacoes").value = ev.observacoes || "";
 
-  agendamentoBtn.textContent = "Salvar Alteracoes";
+  agendamentoBtn.textContent = "Salvar Alterações";
   cancelEditBtn.style.display = "inline-flex";
   formTitle.textContent = "Editar Agendamento";
 
@@ -569,6 +569,70 @@ buscaInput.addEventListener("input", function () {
 
 var cisCache = [];
 
+var ciEditor = null;
+var ciEditorInited = false;
+
+function initCIEditor() {
+  if (ciEditorInited) return;
+  var ta = document.getElementById("ci-descricao");
+  if (!ta || typeof Jodit === "undefined") return;
+  ciEditor = Jodit.make(ta, {
+    toolbarButtonSize: "small",
+    buttons: "bold,italic,underline,|,ul,ol,|,table,link,|,undo,redo,|,fullsize",
+    disablePlugins: "speech-recognize",
+    height: 250,
+    showCharsCounter: false,
+    showWordsCounter: false,
+    showXPathInStatusbar: false,
+  });
+  ciEditorInited = true;
+
+  document.addEventListener("keydown", function escExit(e) {
+    if (e.key === "Escape" && ciEditor && ciEditor.container && ciEditor.container.classList.contains("jodit_fullsize")) {
+      ciEditor.toggleFullSize(false);
+    }
+  });
+}
+
+function toggleSignatarioFields() {
+  var tipo = document.getElementById("ci-tipo").value;
+  var fields = document.getElementById("ci-signatario-fields");
+  var isCI = tipo === "comunicacao_interna";
+  if (fields) fields.style.display = isCI ? "" : "none";
+  var nome = document.getElementById("ci-nome");
+  var sobrenome = document.getElementById("ci-sobrenome");
+  var cargo = document.getElementById("ci-cargo");
+  if (nome) nome.required = isCI;
+  if (sobrenome) sobrenome.required = isCI;
+  if (cargo) cargo.required = isCI;
+}
+
+function getCIEditorContent() {
+  if (ciEditor) return ciEditor.value;
+  return document.getElementById("ci-descricao").value;
+}
+
+function setCIEditorContent(html) {
+  if (ciEditor) {
+    ciEditor.value = html || "";
+  } else {
+    document.getElementById("ci-descricao").value = html || "";
+  }
+}
+
+function resetCIForm() {
+  document.getElementById("ci-editing-id").value = "";
+  document.getElementById("ci-form").reset();
+  document.getElementById("ci-tipo").value = "comunicacao_interna";
+  document.getElementById("ci-btn").textContent = "Gerar e Baixar CI";
+  document.getElementById("ci-cancel-edit-btn").style.display = "none";
+  setCIEditorContent("");
+  toggleSignatarioFields();
+  var feedback = document.getElementById("ci-feedback");
+  feedback.textContent = "";
+  feedback.className = "feedback";
+}
+
 function switchTab(tabName) {
   document.querySelectorAll(".tab").forEach(function (t) {
     t.classList.remove("active");
@@ -585,6 +649,7 @@ function switchTab(tabName) {
   if (tabName === "ci") {
     atualizarEstadoCI();
     loadCIs();
+    setTimeout(initCIEditor, 100);
   }
 }
 
@@ -619,8 +684,19 @@ function atualizarEstadoCI() {
 function renderTabelaCIs(cis) {
   var tbody = document.getElementById("tabela-cis-body");
   if (!cis || cis.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5" class="empty-state">Nenhuma Comunicacao Interna encontrada.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8" class="empty-state">Nenhuma Comunicação Interna encontrada.</td></tr>';
     return;
+  }
+
+  function emitente(ci) {
+    if (ci.tipo === "solicitacao_material") return "Erika Siqueira Souza Battistelli";
+    if (ci.nome_signatario) return ci.nome_signatario + (ci.sobrenome_signatario ? " " + ci.sobrenome_signatario : "");
+    return ci.criador_nome || "";
+  }
+
+  function tipoLabel(tipo) {
+    if (tipo === "solicitacao_material") return "Sol. Material";
+    return "CI";
   }
 
   var html = "";
@@ -629,9 +705,12 @@ function renderTabelaCIs(cis) {
     html +=
       '<tr>' +
         '<td>' + ci.numero_ci + '</td>' +
+        '<td>' + escapeHtml(tipoLabel(ci.tipo)) + '</td>' +
         '<td>' + escapeHtml(ci.titulo) + '</td>' +
+        '<td>' + escapeHtml(ci.de || "-") + '</td>' +
+        '<td>' + escapeHtml(ci.para || "-") + '</td>' +
         '<td>' + formatDate(ci.data) + '</td>' +
-        '<td>' + escapeHtml(ci.criador_nome || ci.usuario_id) + '</td>' +
+        '<td>' + escapeHtml(emitente(ci)) + '</td>' +
         '<td class="td-actions">' +
           '<button class="btn btn-sm btn-edit editar-ci-btn" data-id="' + ci.id + '" title="Editar">Editar</button>' +
           '<button class="btn btn-sm btn-edit baixar-ci-btn" data-id="' + ci.id + '" title="Baixar PDF">PDF</button>' +
@@ -676,14 +755,27 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
     return;
   }
 
+  var tipo = document.getElementById("ci-tipo").value;
+  var de = document.getElementById("ci-de").value.trim();
+  var para = document.getElementById("ci-para").value.trim();
   var titulo = document.getElementById("ci-titulo").value.trim();
   var data = document.getElementById("ci-data").value;
-  var descricao = document.getElementById("ci-descricao").value.trim();
+  var descricao = getCIEditorContent();
+  var nomeSignatario = document.getElementById("ci-nome").value.trim();
+  var sobrenomeSignatario = document.getElementById("ci-sobrenome").value.trim();
+  var cargoSignatario = document.getElementById("ci-cargo").value.trim();
   var editId = document.getElementById("ci-editing-id").value;
 
-  if (!titulo || !data || !descricao) {
-    showFeedback(feedback, "Preencha todos os campos.", "error");
+  if (!tipo || !de || !para || !titulo || !data || !descricao) {
+    showFeedback(feedback, "Preencha todos os campos obrigatórios.", "error");
     return;
+  }
+
+  if (tipo === "comunicacao_interna") {
+    if (!nomeSignatario || !sobrenomeSignatario || !cargoSignatario) {
+      showFeedback(feedback, "Preencha nome, sobrenome e cargo do signatário.", "error");
+      return;
+    }
   }
 
   var btn = document.getElementById("ci-btn");
@@ -695,7 +787,24 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
     ? API_URL + "/api/v1/ci/" + encodeURIComponent(editId)
     : API_URL + "/api/v1/ci";
 
-  var body = { titulo: titulo, data: data, descricao: descricao };
+  var body = {
+    tipo: tipo,
+    de: de,
+    para: para,
+    titulo: titulo,
+    data: data,
+    descricao: descricao,
+  };
+
+  if (tipo === "comunicacao_interna") {
+    body.nome_signatario = nomeSignatario;
+    body.sobrenome_signatario = sobrenomeSignatario;
+    body.cargo_signatario = cargoSignatario;
+  } else {
+    body.nome_signatario = null;
+    body.sobrenome_signatario = null;
+    body.cargo_signatario = null;
+  }
 
   try {
     var res = await fetch(url, {
@@ -721,10 +830,7 @@ document.getElementById("ci-form").addEventListener("submit", async function (e)
     URL.revokeObjectURL(downloadUrl);
 
     showFeedback(feedback, isEditing ? "CI atualizada com sucesso!" : "CI gerada com sucesso!", "success");
-    document.getElementById("ci-form").reset();
-    document.getElementById("ci-editing-id").value = "";
-    document.getElementById("ci-btn").textContent = "Gerar e Baixar CI";
-    document.getElementById("ci-cancel-edit-btn").style.display = "none";
+    resetCIForm();
     loadCIs();
   } catch (err) {
     showFeedback(feedback, err.message, "error");
@@ -782,9 +888,19 @@ function preencherFormularioEdicaoCI(ciId) {
   }
 
   document.getElementById("ci-editing-id").value = ci.id;
+  document.getElementById("ci-tipo").value = ci.tipo || "comunicacao_interna";
+  document.getElementById("ci-de").value = ci.de || "";
+  document.getElementById("ci-para").value = ci.para || "";
   document.getElementById("ci-titulo").value = ci.titulo || "";
   document.getElementById("ci-data").value = ci.data || "";
-  document.getElementById("ci-descricao").value = ci.descricao || "";
+  document.getElementById("ci-nome").value = ci.nome_signatario || "";
+  document.getElementById("ci-sobrenome").value = ci.sobrenome_signatario || "";
+  document.getElementById("ci-cargo").value = ci.cargo_signatario || "";
+  toggleSignatarioFields();
+
+  setTimeout(function () {
+    setCIEditorContent(ci.descricao || "");
+  }, 200);
 
   document.getElementById("ci-btn").textContent = "Salvar Alterações";
   document.getElementById("ci-cancel-edit-btn").style.display = "inline-flex";
@@ -795,21 +911,28 @@ function preencherFormularioEdicaoCI(ciId) {
 }
 
 document.getElementById("ci-cancel-edit-btn").addEventListener("click", function () {
-  document.getElementById("ci-editing-id").value = "";
-  document.getElementById("ci-form").reset();
-  document.getElementById("ci-btn").textContent = "Gerar e Baixar CI";
-  document.getElementById("ci-cancel-edit-btn").style.display = "none";
-  var feedback = document.getElementById("ci-feedback");
-  feedback.textContent = "";
-  feedback.className = "feedback";
+  resetCIForm();
 });
+
+var ciTipoSelect = document.getElementById("ci-tipo");
+if (ciTipoSelect) {
+  ciTipoSelect.addEventListener("change", function () {
+    toggleSignatarioFields();
+  });
+}
 
 var buscaCIsInput = document.getElementById("busca-cis");
 if (buscaCIsInput) {
   buscaCIsInput.addEventListener("input", function () {
-    var query = buscaCIsInput.value;
+    var query = buscaCIsInput.value.toLowerCase().trim();
     var filtrados = query ? cisCache.filter(function (ci) {
-      return ci.titulo.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+      var emitenteNome = ci.nome_signatario || ci.criador_nome || "";
+      var sobrenome = ci.sobrenome_signatario || "";
+      return ci.titulo.toLowerCase().indexOf(query) !== -1
+        || (ci.de || "").toLowerCase().indexOf(query) !== -1
+        || (ci.para || "").toLowerCase().indexOf(query) !== -1
+        || emitenteNome.toLowerCase().indexOf(query) !== -1
+        || sobrenome.toLowerCase().indexOf(query) !== -1;
     }) : cisCache;
     renderTabelaCIs(filtrados);
   });
