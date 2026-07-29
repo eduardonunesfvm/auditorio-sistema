@@ -770,7 +770,8 @@ body {
     overscroll-behavior: contain;
   }
 
-  .form-row.form-row-3 {
+  .form-row.form-row-3,
+  .form-row {
     flex-direction: column;
     gap: 0;
   }
