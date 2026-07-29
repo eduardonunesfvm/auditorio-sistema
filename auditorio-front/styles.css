@@ -881,11 +881,11 @@ body {
   #tabela-agendamentos tbody td,
   #tabela-cis thead th,
   #tabela-cis tbody td {
-    padding: 0.4rem 0.5rem;
+    padding: 0.55rem 0.55rem;
   }
 
   .card-header {
-    padding: 0.85rem 1rem 0;
+    padding: 1rem 1.1rem 0;
   }
 
   .card-header h2 {
@@ -893,16 +893,21 @@ body {
   }
 
   .card-body {
-    padding: 0.75rem 1rem 1rem;
+    padding: 0.85rem 1.1rem 1.1rem;
   }
 
   .card-form form {
-    padding: 0.75rem 1rem 1rem;
+    padding: 0.85rem 1.1rem 1.1rem;
   }
 
   .btn-sm {
-    padding: 0.4rem 0.75rem;
+    padding: 0.45rem 0.75rem;
     font-size: 0.75rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .btn-sm:last-child {
+    margin-bottom: 0;
   }
 
   .modal-overlay {
@@ -950,19 +955,19 @@ body {
   #tabela-agendamentos .td-actions,
   #tabela-cis .td-actions {
     white-space: normal;
-    padding: 0.3rem 0.4rem;
+    padding: 0.4rem 0.5rem;
   }
 
   #tabela-agendamentos thead th,
   #tabela-cis thead th {
     white-space: normal;
-    font-size: 0.6rem;
-    padding: 0.35rem 0.3rem;
+    font-size: 0.625rem;
+    padding: 0.35rem 0.4rem;
   }
 
   #tabela-agendamentos tbody td,
   #tabela-cis tbody td {
-    padding: 0.35rem 0.3rem;
+    padding: 0.5rem 0.4rem;
   }
 }
 
@@ -996,20 +1001,20 @@ body {
   }
 
   .dashboard-grid {
-    padding: 0.5rem;
-    gap: 0.5rem;
+    padding: 0.6rem;
+    gap: 0.6rem;
   }
 
   .card-header {
-    padding: 0.7rem 0.85rem 0;
+    padding: 0.85rem 1rem 0;
   }
 
   .card-body {
-    padding: 0.6rem 0.85rem 0.85rem;
+    padding: 0.75rem 1rem 1rem;
   }
 
   .card-form form {
-    padding: 0.6rem 0.85rem 0.85rem;
+    padding: 0.75rem 1rem 1rem;
   }
 
   .form-group input,
@@ -1027,10 +1032,18 @@ body {
   #tabela-agendamentos tbody td,
   #tabela-cis thead th,
   #tabela-cis tbody td {
-    padding: 0.35rem 0.4rem;
+    padding: 0.4rem 0.45rem;
   }
 
   .th-actions {
     width: 80px;
+  }
+
+  .btn-sm {
+    margin-bottom: 0.3rem;
+  }
+
+  .btn-sm:last-child {
+    margin-bottom: 0;
   }
 }
