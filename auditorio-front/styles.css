@@ -725,7 +725,8 @@ body {
 /* ===== RESPONSIVE ===== */
 
 @media (max-width: 900px) {
-  .dashboard-grid {
+  .dashboard-grid,
+  #tab-ci .dashboard-grid {
     grid-template-columns: 1fr;
     height: auto;
     overflow: visible;
@@ -797,21 +798,54 @@ body {
   }
 
   .topbar {
-    padding: 0 0.75rem;
-    height: 50px;
+    flex-wrap: wrap;
+    height: auto;
+    gap: 0.3rem;
+    padding: 0.35rem 0.75rem 0.4rem;
+  }
+
+  .topbar-brand {
+    flex: 1;
+    min-width: 0;
   }
 
   .topbar-brand h1 {
-    font-size: 1rem;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .topbar-brand span {
-    font-size: 0.65rem;
+    display: none;
   }
 
   .topbar .btn-outline {
     font-size: 0.75rem;
-    padding: 0.35rem 0.75rem;
+    padding: 0.35rem 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .tab-nav {
+    flex: 1 1 100%;
+    order: 10;
+    margin: 0;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  .tab {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.75rem;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .tab-content,
+  #tab-ci .dashboard-grid {
+    height: auto;
+    min-height: 0;
   }
 
   .dashboard-grid {
@@ -932,7 +966,23 @@ body {
   }
 
   .topbar {
-    height: 46px;
+    height: auto;
+    padding: 0.3rem 0.5rem 0.35rem;
+  }
+
+  .topbar-brand h1 {
+    font-size: 0.85rem;
+  }
+
+  .tab {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.7rem;
+    min-height: 38px;
+  }
+
+  .topbar .btn-outline {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.55rem;
   }
 
   .dashboard-grid {
