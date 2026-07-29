@@ -43,13 +43,15 @@ from app.models import UserRole
 
 def criar_token_acesso(usuario_id: UUID, role: UserRole, permissions: list[str] | None = None) -> str:
     """Gera o token JWT embutindo o ID, role e permissions do usuario no payload."""
-    tempo_expiracao = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    agora = datetime.now(timezone.utc)
+    tempo_expiracao = agora + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     payload = {
         "sub": str(usuario_id),
         "role": role.value if isinstance(role, UserRole) else role,
         "permissions": permissions or [],
-        "exp": tempo_expiracao
+        "iat": int(agora.timestamp()),
+        "exp": int(tempo_expiracao.timestamp()),
     }
     
     token_codificado = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
