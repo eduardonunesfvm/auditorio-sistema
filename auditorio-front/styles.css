@@ -753,15 +753,21 @@ body {
   }
 
   .dashboard-col-right .card-table {
-    min-height: 400px;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .card-body-table {
-    min-height: 300px;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .table-scroll {
-    min-height: 200px;
+    max-height: 50vh;
+    min-height: 100px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .form-row.form-row-3 {
@@ -854,12 +860,16 @@ body {
   }
 
   .dashboard-col-right .card-table {
-    min-height: 300px;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .table-scroll {
-    min-height: 150px;
+    max-height: 45vh;
+    min-height: 80px;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   #tabela-agendamentos,
