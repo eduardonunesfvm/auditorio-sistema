@@ -969,6 +969,22 @@ body {
   #tabela-cis tbody td {
     padding: 0.5rem 0.4rem;
   }
+
+  #tabela-agendamentos th:nth-child(5),
+  #tabela-agendamentos td:nth-child(5) {
+    display: none;
+  }
+
+  #tabela-cis th:nth-child(2),
+  #tabela-cis td:nth-child(2),
+  #tabela-cis th:nth-child(4),
+  #tabela-cis td:nth-child(4),
+  #tabela-cis th:nth-child(5),
+  #tabela-cis td:nth-child(5),
+  #tabela-cis th:nth-child(7),
+  #tabela-cis td:nth-child(7) {
+    display: none;
+  }
 }
 
 @media (max-width: 380px) {
