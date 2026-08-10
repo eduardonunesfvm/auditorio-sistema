@@ -1,4 +1,4 @@
-const API_URL = (location.protocol === "file:" || location.port === "5500") ? "http://127.0.0.1:8000" : "";
+const API_URL = (location.protocol === "file:" || location.port === "5500" || location.port === "4173") ? "http://127.0.0.1:8000" : "";
 
 var loginScreen = document.getElementById("login-screen");
 var dashboardScreen = document.getElementById("dashboard-screen");
@@ -30,10 +30,34 @@ var modalTitle = document.getElementById("modal-title");
 var modalMessage = document.getElementById("modal-message");
 var modalActions = document.getElementById("modal-actions");
 
+var dataEventoInput = document.getElementById("data-evento");
+var horaInicioInput = document.getElementById("hora-inicio");
+var horaFimInput = document.getElementById("hora-fim");
+var nomeEventoInput = document.getElementById("nome-evento");
+var participantesInput = document.getElementById("qtd-participantes");
+var observacoesInput = document.getElementById("observacoes");
+var wizardBackBtn = document.getElementById("wizard-back-btn");
+var wizardNextBtn = document.getElementById("wizard-next-btn");
+var wizardSteps = document.querySelectorAll("[data-wizard-step]");
+var wizardIndicators = document.querySelectorAll("[data-wizard-indicator]");
+var availabilityStatus = document.getElementById("availability-status");
+var availabilityTimeline = document.getElementById("availability-timeline");
+var availabilityDetails = document.getElementById("availability-details");
+var selectedDateLabel = document.getElementById("selected-date-label");
+var bookingSummaryDate = document.getElementById("booking-summary-date");
+var bookingSummaryTime = document.getElementById("booking-summary-time");
+
 var agendamentosCache = [];
 var navigationOrigin = null;
 var operationStatusTimer = null;
 var lastModalFocus = null;
+var wizardState = {
+  step: 1,
+  availability: null,
+  availabilityDate: "",
+  requestId: 0,
+  loading: false
+};
 
 var ICONS = {
   plus: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
@@ -194,12 +218,49 @@ function applyRoleRestrictions() {
   if (isVisualizador() && !formView.classList.contains("hidden")) showView("view-agendamentos");
 }
 
+function resetAvailability() {
+  wizardState.requestId += 1;
+  wizardState.availability = null;
+  wizardState.availabilityDate = "";
+  wizardState.loading = false;
+  availabilityStatus.textContent = "Selecione uma data para consultar os horários.";
+  availabilityStatus.className = "";
+  availabilityTimeline.hidden = true;
+  availabilityTimeline.innerHTML = "";
+  availabilityDetails.innerHTML = "";
+}
+
+function setWizardStep(step, shouldFocus) {
+  wizardState.step = step;
+  wizardSteps.forEach(function (section) {
+    section.hidden = Number(section.dataset.wizardStep) !== step;
+  });
+  wizardIndicators.forEach(function (indicator) {
+    var indicatorStep = Number(indicator.dataset.wizardIndicator);
+    indicator.classList.toggle("active", indicatorStep === step);
+    indicator.classList.toggle("completed", indicatorStep < step);
+    if (indicatorStep === step) indicator.setAttribute("aria-current", "step");
+    else indicator.removeAttribute("aria-current");
+  });
+  wizardBackBtn.hidden = step === 1;
+  wizardNextBtn.hidden = step === 3;
+  agendamentoBtn.hidden = step !== 3;
+  if (step === 3) updateBookingSummary();
+  if (shouldFocus) {
+    var heading = document.getElementById("wizard-step-" + step + "-title");
+    heading.tabIndex = -1;
+    heading.focus();
+  }
+}
+
 function resetFormState() {
   agendamentoForm.reset();
   editingId.value = "";
   formTitle.textContent = "Novo Agendamento";
   agendamentoBtn.textContent = "Confirmar Agendamento";
   hideFeedback(agendamentoFeedback);
+  resetAvailability();
+  setWizardStep(1, false);
 }
 
 function openFormForCreate() {
@@ -207,7 +268,7 @@ function openFormForCreate() {
   navigationOrigin = { type: "new" };
   resetFormState();
   showView("view-novo-agendamento");
-  document.getElementById("nome-evento").focus();
+  dataEventoInput.focus();
 }
 
 function restoreListFocus() {
@@ -235,9 +296,23 @@ function handleAuthError(statusCode) {
   return true;
 }
 
-async function responseError(response, fallback) {
+async function responseErrorDetails(response, fallback) {
   var data = await response.json().catch(function () { return null; });
-  return data?.detail || data?.message || fallback;
+  var detail = data && data.detail;
+  if (detail && typeof detail === "object") {
+    return {
+      code: detail.code || "",
+      message: detail.message || fallback
+    };
+  }
+  return {
+    code: data && data.code ? data.code : "",
+    message: detail || (data && data.message) || fallback
+  };
+}
+
+async function responseError(response, fallback) {
+  return (await responseErrorDetails(response, fallback)).message;
 }
 
 function renderNextEventLoading() {
@@ -402,16 +477,227 @@ function refreshAll() {
   return Promise.all([loadProximoEvento(), loadAgendamentos()]);
 }
 
+function timeToMinutes(value) {
+  var parts = String(value || "").split(":");
+  if (parts.length < 2) return NaN;
+  return Number(parts[0]) * 60 + Number(parts[1]) + Number(parts[2] || 0) / 60;
+}
+
+function minutesToTimeLabel(totalMinutes) {
+  var hours = Math.floor(totalMinutes / 60);
+  var minutes = Math.round(totalMinutes % 60);
+  return (hours < 10 ? "0" : "") + hours + ":" + (minutes < 10 ? "0" : "") + minutes;
+}
+
+function timelineMarkers(start, end) {
+  var duration = end - start;
+  var step = duration > 600 ? 180 : 120;
+  var markers = [start];
+  for (var marker = start + step; marker < end; marker += step) {
+    if (end - marker >= step / 2) markers.push(marker);
+  }
+  markers.push(end);
+  return markers;
+}
+
+function operatingPeriods(availability) {
+  var start = timeToMinutes(availability.jornada.inicio);
+  var end = timeToMinutes(availability.jornada.fim);
+  var blocks = (availability.bloqueios || []).slice().sort(function (a, b) {
+    return timeToMinutes(a.inicio) - timeToMinutes(b.inicio);
+  });
+  var periods = [];
+  var cursor = start;
+  blocks.forEach(function (block) {
+    var blockStart = timeToMinutes(block.inicio);
+    var blockEnd = timeToMinutes(block.fim);
+    if (cursor < blockStart) periods.push({ inicio: cursor, fim: blockStart });
+    cursor = Math.max(cursor, blockEnd);
+  });
+  if (cursor < end) periods.push({ inicio: cursor, fim: end });
+  return periods;
+}
+
+function validateSelectedTime() {
+  if (!wizardState.availability || wizardState.availabilityDate !== dataEventoInput.value) {
+    return "Consulte a disponibilidade da data antes de escolher o horário.";
+  }
+
+  var start = timeToMinutes(horaInicioInput.value);
+  var end = timeToMinutes(horaFimInput.value);
+  if (isNaN(start) || isNaN(end)) return "Informe os horários de início e fim.";
+  if (start >= end) return "O horário de fim deve ser posterior ao horário de início.";
+
+  var fitsOperatingPeriod = operatingPeriods(wizardState.availability).some(function (period) {
+    return start >= period.inicio && end <= period.fim;
+  });
+  if (!fitsOperatingPeriod) {
+    return "Escolha um horário entre 07:00 e 11:00 ou entre 13:00 e 20:00.";
+  }
+
+  var overlaps = (wizardState.availability.ocupados || []).some(function (occupied) {
+    return start < timeToMinutes(occupied.fim) && end > timeToMinutes(occupied.inicio);
+  });
+  if (overlaps) return "O intervalo escolhido já está ocupado. Selecione outro horário.";
+  return "";
+}
+
+function renderAvailability(data) {
+  var dayStart = timeToMinutes(data.jornada.inicio);
+  var dayEnd = timeToMinutes(data.jornada.fim);
+  var duration = dayEnd - dayStart;
+  var markers = timelineMarkers(dayStart, dayEnd);
+  var segments = [];
+
+  (data.bloqueios || []).forEach(function (block) {
+    segments.push({
+      className: "timeline-segment lunch",
+      inicio: block.inicio,
+      fim: block.fim,
+      label: "Pausa para almoço"
+    });
+  });
+  (data.ocupados || []).forEach(function (occupied) {
+    segments.push({
+      className: "timeline-segment occupied",
+      inicio: occupied.inicio,
+      fim: occupied.fim,
+      label: "Horário ocupado"
+    });
+  });
+
+  var trackHtml = '<div class="timeline-track" role="img" aria-label="Linha do tempo das ' +
+    escapeHtml(formatTime(data.jornada.inicio)) + ' às ' + escapeHtml(formatTime(data.jornada.fim)) + '">';
+  markers.slice(1, -1).forEach(function (marker) {
+    var position = ((marker - dayStart) / duration) * 100;
+    trackHtml += '<span class="timeline-grid-line" style="left:' + position + '%" aria-hidden="true"></span>';
+  });
+  segments.forEach(function (segment) {
+    var left = ((timeToMinutes(segment.inicio) - dayStart) / duration) * 100;
+    var width = ((timeToMinutes(segment.fim) - timeToMinutes(segment.inicio)) / duration) * 100;
+    trackHtml += '<span class="' + segment.className + '" style="left:' + left + '%;width:' + width + '%" title="' +
+      escapeHtml(segment.label + ": " + formatTime(segment.inicio) + "–" + formatTime(segment.fim)) + '"></span>';
+  });
+  trackHtml += '</div><div class="timeline-labels">';
+  markers.forEach(function (marker) {
+    var position = ((marker - dayStart) / duration) * 100;
+    trackHtml += '<span style="left:' + position + '%">' + minutesToTimeLabel(marker) + '</span>';
+  });
+  trackHtml += '</div>';
+
+  availabilityTimeline.innerHTML = trackHtml;
+  availabilityTimeline.hidden = false;
+  availabilityStatus.className = "availability-success";
+  availabilityStatus.textContent = data.ocupados.length
+    ? data.ocupados.length + (data.ocupados.length === 1 ? " reserva ocupa parte deste dia." : " reservas ocupam parte deste dia.")
+    : "Todo o expediente está livre nesta data.";
+
+  if (!data.ocupados.length) {
+    availabilityDetails.innerHTML = '<p class="availability-empty">Nenhum horário reservado.</p>';
+    return;
+  }
+  availabilityDetails.innerHTML = '<strong>Intervalos ocupados</strong><ul>' + data.ocupados.map(function (occupied) {
+    return '<li>' + escapeHtml(formatTime(occupied.inicio) + "–" + formatTime(occupied.fim)) + '</li>';
+  }).join("") + '</ul>';
+}
+
+async function loadAvailability() {
+  var dateValue = dataEventoInput.value;
+  if (!dateValue) {
+    resetAvailability();
+    return false;
+  }
+
+  var requestId = wizardState.requestId + 1;
+  wizardState.requestId = requestId;
+  wizardState.loading = true;
+  wizardState.availability = null;
+  wizardState.availabilityDate = "";
+  availabilityStatus.className = "availability-loading";
+  availabilityStatus.textContent = "Consultando disponibilidade...";
+  availabilityTimeline.hidden = true;
+  availabilityDetails.innerHTML = "";
+  wizardNextBtn.disabled = true;
+
+  var params = new URLSearchParams({ data: dateValue });
+  if (editingId.value) params.set("agendamento_id", editingId.value);
+
+  try {
+    var response = await fetch(API_URL + "/agendamentos/disponibilidade?" + params.toString(), {
+      headers: apiHeaders()
+    });
+    if (!response.ok) {
+      if (handleAuthError(response.status)) return false;
+      throw new Error(await responseError(response, "Não foi possível consultar a disponibilidade."));
+    }
+    var data = await response.json();
+    if (requestId !== wizardState.requestId) return false;
+    wizardState.availability = data;
+    wizardState.availabilityDate = dateValue;
+    renderAvailability(data);
+    return true;
+  } catch (err) {
+    if (requestId !== wizardState.requestId) return false;
+    availabilityStatus.className = "availability-error";
+    availabilityStatus.textContent = err.message;
+    availabilityDetails.innerHTML = '<button type="button" class="btn btn-outline btn-small" data-action="retry-availability">Tentar novamente</button>';
+    return false;
+  } finally {
+    if (requestId === wizardState.requestId) {
+      wizardState.loading = false;
+      wizardNextBtn.disabled = false;
+    }
+  }
+}
+
 function buildPayload() {
-  var quantity = parseInt(document.getElementById("qtd-participantes").value, 10);
+  var quantity = parseInt(participantesInput.value, 10);
   return {
-    nome_evento: document.getElementById("nome-evento").value.trim(),
-    data_evento: document.getElementById("data-evento").value,
-    hora_inicio: document.getElementById("hora-inicio").value,
-    hora_fim: document.getElementById("hora-fim").value,
+    nome_evento: nomeEventoInput.value.trim(),
+    data_evento: dataEventoInput.value,
+    hora_inicio: horaInicioInput.value,
+    hora_fim: horaFimInput.value,
     quantidade_participantes: isNaN(quantity) ? null : quantity,
-    observacoes: document.getElementById("observacoes").value.trim() || null
+    observacoes: observacoesInput.value.trim() || null
   };
+}
+
+function updateBookingSummary() {
+  bookingSummaryDate.textContent = dataEventoInput.value ? formatDate(dataEventoInput.value) : "Data não informada";
+  bookingSummaryTime.textContent = horaInicioInput.value && horaFimInput.value
+    ? formatTime(horaInicioInput.value) + "–" + formatTime(horaFimInput.value) + " · horário de Campo Grande"
+    : "Horário não informado";
+}
+
+async function advanceWizard() {
+  hideFeedback(agendamentoFeedback);
+  if (wizardState.step === 1) {
+    if (!dataEventoInput.value) {
+      showFeedback(agendamentoFeedback, "Selecione a data do evento.", "error");
+      dataEventoInput.focus();
+      return;
+    }
+    if (!wizardState.availability || wizardState.availabilityDate !== dataEventoInput.value) {
+      var loaded = await loadAvailability();
+      if (!loaded) {
+        showFeedback(agendamentoFeedback, "Consulte a disponibilidade antes de continuar.", "error");
+        return;
+      }
+    }
+    selectedDateLabel.textContent = "Data selecionada: " + formatDate(dataEventoInput.value) + ".";
+    setWizardStep(2, true);
+    return;
+  }
+
+  if (wizardState.step === 2) {
+    var scheduleError = validateSelectedTime();
+    if (scheduleError) {
+      showFeedback(agendamentoFeedback, scheduleError, "error");
+      horaInicioInput.focus();
+      return;
+    }
+    setWizardStep(3, true);
+  }
 }
 
 function findAgendamento(id) {
@@ -422,18 +708,20 @@ function openEditForm(id) {
   var item = findAgendamento(id);
   if (!item || !canManage(item)) return;
   navigationOrigin = { type: "edit", id: String(id) };
+  resetFormState();
   editingId.value = item.id;
-  document.getElementById("nome-evento").value = item.nome_evento || "";
-  document.getElementById("data-evento").value = item.data_evento || "";
-  document.getElementById("hora-inicio").value = item.hora_inicio ? item.hora_inicio.substring(0, 5) : "";
-  document.getElementById("hora-fim").value = item.hora_fim ? item.hora_fim.substring(0, 5) : "";
-  document.getElementById("qtd-participantes").value = item.quantidade_participantes == null ? "" : item.quantidade_participantes;
-  document.getElementById("observacoes").value = item.observacoes || "";
+  nomeEventoInput.value = item.nome_evento || "";
+  dataEventoInput.value = item.data_evento || "";
+  horaInicioInput.value = item.hora_inicio ? item.hora_inicio.substring(0, 5) : "";
+  horaFimInput.value = item.hora_fim ? item.hora_fim.substring(0, 5) : "";
+  participantesInput.value = item.quantidade_participantes == null ? "" : item.quantidade_participantes;
+  observacoesInput.value = item.observacoes || "";
   formTitle.textContent = "Editar Agendamento";
   agendamentoBtn.textContent = "Salvar Alterações";
-  hideFeedback(agendamentoFeedback);
   showView("view-novo-agendamento");
-  document.getElementById("nome-evento").focus();
+  setWizardStep(1, false);
+  loadAvailability();
+  dataEventoInput.focus();
 }
 
 function showModal(title, message, buttons) {
@@ -538,6 +826,20 @@ cancelEditBtn.addEventListener("click", function () {
   returnToList(true);
 });
 
+dataEventoInput.addEventListener("change", function () {
+  horaInicioInput.value = "";
+  horaFimInput.value = "";
+  hideFeedback(agendamentoFeedback);
+  loadAvailability();
+});
+
+wizardNextBtn.addEventListener("click", advanceWizard);
+
+wizardBackBtn.addEventListener("click", function () {
+  hideFeedback(agendamentoFeedback);
+  if (wizardState.step > 1) setWizardStep(wizardState.step - 1, true);
+});
+
 agendamentoForm.addEventListener("submit", async function (event) {
   event.preventDefault();
   hideFeedback(agendamentoFeedback);
@@ -545,13 +847,18 @@ agendamentoForm.addEventListener("submit", async function (event) {
     showFeedback(agendamentoFeedback, "Sua conta possui apenas permissão de visualização.", "error");
     return;
   }
-  var payload = buildPayload();
-  if (!payload.nome_evento || !payload.data_evento || !payload.hora_inicio || !payload.hora_fim || payload.quantidade_participantes == null) {
-    showFeedback(agendamentoFeedback, "Preencha todos os campos obrigatórios.", "error");
+
+  var scheduleError = validateSelectedTime();
+  if (scheduleError) {
+    setWizardStep(2, true);
+    showFeedback(agendamentoFeedback, scheduleError, "error");
     return;
   }
-  if (payload.hora_fim <= payload.hora_inicio) {
-    showFeedback(agendamentoFeedback, "O horário de fim deve ser posterior ao horário de início.", "error");
+
+  var payload = buildPayload();
+  if (!payload.nome_evento || payload.nome_evento.length < 3 || payload.quantidade_participantes == null) {
+    showFeedback(agendamentoFeedback, "Informe um nome com pelo menos 3 caracteres e a quantidade de participantes.", "error");
+    nomeEventoInput.focus();
     return;
   }
 
@@ -565,7 +872,21 @@ agendamentoForm.addEventListener("submit", async function (event) {
     );
     if (!response.ok) {
       if (handleAuthError(response.status)) return;
-      throw new Error(await responseError(response, "Não foi possível salvar o agendamento."));
+      var apiError = await responseErrorDetails(response, "Não foi possível salvar o agendamento.");
+      if (response.status === 409 && apiError.code === "schedule_conflict") {
+        horaInicioInput.value = "";
+        horaFimInput.value = "";
+        await loadAvailability();
+        setWizardStep(2, true);
+        showFeedback(agendamentoFeedback, apiError.message, "error");
+        return;
+      }
+      if (response.status === 400 && apiError.code === "invalid_schedule_window") {
+        setWizardStep(2, true);
+        showFeedback(agendamentoFeedback, apiError.message, "error");
+        return;
+      }
+      throw new Error(apiError.message);
     }
     resetFormState();
     showView("view-agendamentos");
@@ -587,6 +908,11 @@ scheduleSection.addEventListener("click", function (event) {
   if (action === "retry") refreshAll();
   if (action === "edit") openEditForm(button.dataset.id);
   if (action === "delete") confirmDelete(button.dataset.id);
+});
+
+availabilityDetails.addEventListener("click", function (event) {
+  var button = event.target.closest('[data-action="retry-availability"]');
+  if (button) loadAvailability();
 });
 
 buscaInput.addEventListener("input", renderAgendamentos);

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Sistema do Auditório</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <div id="login-screen" class="screen active">
@@ -125,47 +125,111 @@
           <div class="form-page-header">
             <p class="eyebrow">Reserva do espaço</p>
             <h1 id="form-title" tabindex="-1">Novo Agendamento</h1>
-            <p>Informe os dados do evento para reservar o auditório.</p>
+            <p>Escolha uma data, encontre um horário livre e confirme os dados do evento.</p>
           </div>
 
           <div class="form-card">
+            <ol class="wizard-progress" aria-label="Etapas do agendamento">
+              <li class="active" data-wizard-indicator="1" aria-current="step"><span>1</span><strong>Data</strong></li>
+              <li data-wizard-indicator="2"><span>2</span><strong>Horário</strong></li>
+              <li data-wizard-indicator="3"><span>3</span><strong>Evento</strong></li>
+            </ol>
+
             <form id="agendamento-form" novalidate>
               <input type="hidden" id="editing-id" value="">
 
-              <div class="form-group form-group-wide">
-                <label for="nome-evento">Nome do Evento <span aria-hidden="true">*</span></label>
-                <input type="text" id="nome-evento" name="nome_evento" placeholder="Ex: Reunião de Diretoria" required>
-              </div>
+              <section class="wizard-step" data-wizard-step="1" aria-labelledby="wizard-step-1-title">
+                <div class="wizard-step-heading">
+                  <p class="wizard-step-kicker">Etapa 1 de 3</p>
+                  <h2 id="wizard-step-1-title">Escolha a data</h2>
+                  <p>Os horários abaixo seguem o fuso de Campo Grande (MS).</p>
+                </div>
 
-              <div class="form-grid">
-                <div class="form-group">
+                <div class="form-group date-field">
                   <label for="data-evento">Data <span aria-hidden="true">*</span></label>
                   <input type="date" id="data-evento" name="data_evento" required>
                 </div>
-                <div class="form-group">
-                  <label for="qtd-participantes">Participantes <span aria-hidden="true">*</span></label>
-                  <input type="number" id="qtd-participantes" name="qtd_participantes" placeholder="Ex: 50" min="1" required>
-                </div>
-                <div class="form-group">
-                  <label for="hora-inicio">Horário de Início <span aria-hidden="true">*</span></label>
-                  <input type="time" id="hora-inicio" name="hora_inicio" required>
-                </div>
-                <div class="form-group">
-                  <label for="hora-fim">Horário de Fim <span aria-hidden="true">*</span></label>
-                  <input type="time" id="hora-fim" name="hora_fim" required>
-                </div>
-              </div>
 
-              <div class="form-group form-group-wide">
-                <label for="observacoes">Observações <span class="optional">Opcional</span></label>
-                <textarea id="observacoes" name="observacoes" rows="4" placeholder="Informações adicionais sobre o evento..."></textarea>
-              </div>
+                <section class="availability-panel" aria-labelledby="availability-title">
+                  <div class="availability-heading">
+                    <div>
+                      <h3 id="availability-title">Disponibilidade do auditório</h3>
+                      <p id="availability-status" role="status" aria-live="polite">Selecione uma data para consultar os horários.</p>
+                    </div>
+                    <div class="timeline-legend" aria-label="Legenda">
+                      <span><i class="legend-free"></i>Livre</span>
+                      <span><i class="legend-occupied"></i>Ocupado</span>
+                      <span><i class="legend-lunch"></i>Almoço</span>
+                    </div>
+                  </div>
+                  <div id="availability-timeline" class="availability-timeline" hidden></div>
+                  <div id="availability-details" class="availability-details"></div>
+                </section>
+              </section>
+
+              <section class="wizard-step" data-wizard-step="2" aria-labelledby="wizard-step-2-title" hidden>
+                <div class="wizard-step-heading">
+                  <p class="wizard-step-kicker">Etapa 2 de 3</p>
+                  <h2 id="wizard-step-2-title">Defina o horário</h2>
+                  <p id="selected-date-label">Escolha um intervalo livre na data selecionada.</p>
+                </div>
+
+                <div class="schedule-policy-note">
+                  <strong>Expediente:</strong> 07:00–11:00 e 13:00–20:00.
+                  Eventos não podem atravessar a pausa para almoço.
+                </div>
+
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="hora-inicio">Horário de Início <span aria-hidden="true">*</span></label>
+                    <input type="time" id="hora-inicio" name="hora_inicio" step="60" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="hora-fim">Horário de Fim <span aria-hidden="true">*</span></label>
+                    <input type="time" id="hora-fim" name="hora_fim" step="60" required>
+                  </div>
+                </div>
+              </section>
+
+              <section class="wizard-step" data-wizard-step="3" aria-labelledby="wizard-step-3-title" hidden>
+                <div class="wizard-step-heading">
+                  <p class="wizard-step-kicker">Etapa 3 de 3</p>
+                  <h2 id="wizard-step-3-title">Informe os dados do evento</h2>
+                  <p>Revise a reserva antes de confirmar.</p>
+                </div>
+
+                <div class="form-group form-group-wide">
+                  <label for="nome-evento">Nome do Evento <span aria-hidden="true">*</span></label>
+                  <input type="text" id="nome-evento" name="nome_evento" placeholder="Ex: Reunião de Diretoria" minlength="3" required>
+                </div>
+
+                <div class="form-grid event-details-grid">
+                  <div class="form-group">
+                    <label for="qtd-participantes">Participantes <span aria-hidden="true">*</span></label>
+                    <input type="number" id="qtd-participantes" name="qtd_participantes" placeholder="Ex: 50" min="1" required>
+                  </div>
+                  <div class="booking-summary" aria-labelledby="booking-summary-title">
+                    <strong id="booking-summary-title">Reserva selecionada</strong>
+                    <span id="booking-summary-date">Data não informada</span>
+                    <span id="booking-summary-time">Horário não informado</span>
+                  </div>
+                </div>
+
+                <div class="form-group form-group-wide">
+                  <label for="observacoes">Observações <span class="optional">Opcional</span></label>
+                  <textarea id="observacoes" name="observacoes" rows="4" placeholder="Informações adicionais sobre o evento..."></textarea>
+                </div>
+              </section>
 
               <div id="agendamento-feedback" class="feedback" aria-live="polite"></div>
 
               <div class="form-actions">
                 <button type="button" class="btn btn-outline" id="cancel-edit-btn">Cancelar</button>
-                <button type="submit" class="btn btn-primary" id="agendamento-btn">Confirmar Agendamento</button>
+                <div class="wizard-navigation">
+                  <button type="button" class="btn btn-outline" id="wizard-back-btn" hidden>Anterior</button>
+                  <button type="button" class="btn btn-primary" id="wizard-next-btn">Continuar</button>
+                  <button type="submit" class="btn btn-primary" id="agendamento-btn" hidden>Confirmar Agendamento</button>
+                </div>
               </div>
             </form>
           </div>
@@ -185,6 +249,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

@@ -13,5 +13,12 @@ README.md
 docs/
 auditorio-front/Dockerfile
 auditorio-front/nginx.conf
+auditorio-front/node_modules/
+auditorio-front/test-results/
+auditorio-front/playwright-report/
+auditorio-front/tests/
+auditorio-front/package.json
+auditorio-front/package-lock.json
+auditorio-front/playwright.config.js
 projeto-auditorio/.dockerignore
 projeto-auditorio/Dockerfile

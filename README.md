@@ -9,14 +9,18 @@ Sistema interno para autenticação de usuários e gerenciamento dos agendamento
 - Cadastro e autenticação com JWT.
 - Perfis `admin`, `superintendente` e `visualizador`.
 - Criação, consulta, edição e exclusão de agendamentos.
-- Detecção de conflito entre horários.
+- Consulta visual da disponibilidade antes da confirmação.
+- Proteção contra reservas concorrentes e sobreposição de horários.
 - Destaque do próximo evento e busca de agendamentos.
 - Interface responsiva servida por Nginx.
+
+O auditório funciona no horário de Campo Grande (`America/Campo_Grande`), das 07:00 às 11:00 e das 13:00 às 20:00. Eventos adjacentes são permitidos, mas um evento não pode atravessar a pausa para almoço.
 
 ## Tecnologias
 
 - Backend: FastAPI, SQLAlchemy, Alembic e PostgreSQL.
 - Frontend: HTML, CSS e JavaScript sem framework.
+- Testes: Pytest, PostgreSQL real e Playwright.
 - Infraestrutura: Docker Compose e GitHub Actions.
 
 ## Execução com Docker
@@ -38,11 +42,14 @@ docker compose up --build
 |---|---|---|
 | `POST` | `/auth/login` | Autenticar usuário |
 | `POST` | `/auth/cadastro` | Cadastrar usuário |
-| `GET` | `/api/v1/agendamentos` | Listar agendamentos |
-| `GET` | `/api/v1/agendamentos/proximo` | Consultar próximo evento |
-| `POST` | `/api/v1/agendamentos` | Criar agendamento |
-| `PUT` | `/api/v1/agendamentos/{id}` | Atualizar agendamento |
-| `DELETE` | `/api/v1/agendamentos/{id}` | Excluir agendamento |
+| `GET` | `/agendamentos` | Listar agendamentos |
+| `GET` | `/agendamentos/proximo` | Consultar próximo evento |
+| `GET` | `/agendamentos/disponibilidade?data=YYYY-MM-DD` | Consultar intervalos ocupados |
+| `POST` | `/agendamentos/criar_agendamento` | Criar agendamento |
+| `PUT` | `/agendamentos/{id}` | Atualizar agendamento |
+| `DELETE` | `/agendamentos/{id}` | Excluir agendamento |
+
+Conflitos de horário retornam HTTP `409` com o código `schedule_conflict`. Violações do expediente retornam HTTP `400` com o código `invalid_schedule_window`.
 
 ## Testes e migrations
 
@@ -52,4 +59,19 @@ pytest app/tests.py -v
 alembic upgrade head
 ```
 
-Antes de aplicar migrations destrutivas em produção, faça o backup operacional do banco.
+Os testes PostgreSQL exigem `POSTGRES_TEST_DATABASE_URL` apontando para um banco isolado:
+
+```bash
+pytest app/test_postgres_scheduling.py -v
+```
+
+Os testes do frontend são executados separadamente:
+
+```bash
+cd auditorio-front
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+A migration de regras de horário interrompe o upgrade se encontrar sobreposições ou registros fora do expediente. Ela não altera dados automaticamente. Faça o backup operacional do banco e corrija os identificadores informados antes de tentar novamente.

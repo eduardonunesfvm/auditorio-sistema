@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import date, time
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 from app.models import UserRole
 
@@ -65,5 +65,25 @@ class AgendamentoUpdate(BaseModel):
     quantidade_participantes: Optional[int] = None
     observacoes: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class IntervaloHorarioResponse(BaseModel):
+    inicio: str
+    fim: str
+
+
+class JornadaResponse(IntervaloHorarioResponse):
+    pass
+
+
+class BloqueioHorarioResponse(IntervaloHorarioResponse):
+    tipo: Literal["almoco"]
+
+
+class DisponibilidadeResponse(BaseModel):
+    data: date
+    timezone: str
+    jornada: JornadaResponse
+    bloqueios: list[BloqueioHorarioResponse]
+    ocupados: list[IntervaloHorarioResponse]
