@@ -6,14 +6,14 @@ from sqlalchemy import text
 import os
 
 from app.database import get_db
-from app.routers import auth, agendamentos, ci
+from app.routers import auth, agendamentos
 
 ENV = os.getenv("ENV", "development")
 _docs_enabled = ENV != "production"
 
 app = FastAPI(
-    title="Sistema da Secretaria",
-    description="Sistema interno corporativo para gerenciamento de auditório e comunicação interna.",
+    title="Sistema do Auditório",
+    description="Sistema interno para gerenciamento do auditório.",
     version="2.0.0",
     docs_url="/docs" if _docs_enabled else None,
     redoc_url=None,
@@ -30,7 +30,6 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(agendamentos.router)
-app.include_router(ci.router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Monitoramento"])
@@ -56,6 +55,8 @@ STATIC_DIR = os.getenv(
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_frontend(full_path: str):
+    if full_path == "api" or full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
     file_path = os.path.join(STATIC_DIR, full_path)
     if os.path.isfile(file_path):
         return FileResponse(file_path)

@@ -2,264 +2,253 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Sistema da Secretaria</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Sistema do Auditório</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
-
   <div id="login-screen" class="screen active">
-    <div class="login-card">
-      <div class="login-header">
-        <h1>Secretaria</h1>
-        <p>Sistema da Secretaria</p>
-      </div>
-      <form id="login-form" novalidate>
-        <div class="form-group">
-          <label for="login">Login</label>
-          <input type="text" id="login" name="login" placeholder="Seu login" required autocomplete="username">
+    <main class="login-shell">
+      <section class="login-card" aria-labelledby="login-title">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 21h18M6 21V7l6-4 6 4v14M9 10h.01M12 10h.01M15 10h.01M9 14h.01M12 14h.01M15 14h.01M10 21v-3h4v3"/></svg>
         </div>
-        <div class="form-group">
-          <label for="senha">Senha</label>
-          <input type="password" id="senha" name="senha" placeholder="Sua senha" required autocomplete="current-password">
+        <div class="login-header">
+          <p class="eyebrow">Controle institucional</p>
+          <h1 id="login-title">Sistema do Auditório</h1>
+          <p>Acesse para consultar e gerenciar os agendamentos.</p>
         </div>
-        <div id="login-feedback" class="feedback" aria-live="polite"></div>
-        <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
-      </form>
-    </div>
+        <form id="login-form" novalidate>
+          <div class="form-group">
+            <label for="login">Login</label>
+            <input type="text" id="login" name="login" placeholder="Seu login" required autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="senha">Senha</label>
+            <input type="password" id="senha" name="senha" placeholder="Sua senha" required autocomplete="current-password">
+          </div>
+          <div id="login-feedback" class="feedback" aria-live="polite"></div>
+          <button type="submit" class="btn btn-primary btn-full" id="login-btn">Entrar</button>
+        </form>
+      </section>
+    </main>
   </div>
 
   <div id="dashboard-screen" class="screen">
     <header class="topbar">
-      <div class="topbar-brand">
-        <h1>Sistema da Secretaria</h1>
-        <span>Gestão Interna</span>
+      <div class="topbar-inner">
+        <div class="topbar-brand">
+          <span class="topbar-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 21h18M6 21V7l6-4 6 4v14M10 21v-4h4v4"/></svg>
+          </span>
+          <span>
+            <strong>Sistema do Auditório</strong>
+            <small>Controle de Agendamentos</small>
+          </span>
+        </div>
+        <button type="button" class="btn btn-ghost" id="logout-btn">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg>
+          Sair
+        </button>
       </div>
-      <nav class="tab-nav" id="tab-nav">
-        <button type="button" class="tab active" data-tab="auditorio">Auditório</button>
-        <button type="button" class="tab" data-tab="ci">Comunicação Interna</button>
-      </nav>
-      <button type="button" class="btn btn-outline" id="logout-btn">Sair</button>
     </header>
 
-    <div class="tab-content active" id="tab-auditorio">
-    <div class="dashboard-grid">
-
-      <aside class="dashboard-col-left">
-        <div class="card card-form">
-          <div class="card-header">
-            <h2 id="form-title">Novo Agendamento</h2>
-            <p>Preencha os dados para reservar o auditório.</p>
+    <main class="app-main" id="tab-auditorio">
+      <section id="view-agendamentos" class="view-section" aria-labelledby="list-title">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Reservas e eventos</p>
+            <h1 id="list-title" tabindex="-1">Agendamentos do Auditório</h1>
+            <p>Consulte e gerencie as reservas do auditório.</p>
           </div>
-          <form id="agendamento-form" novalidate>
-            <input type="hidden" id="editing-id" value="">
-
-            <div class="form-group">
-              <label for="nome-evento">Nome do Evento</label>
-              <input type="text" id="nome-evento" name="nome_evento" placeholder="Ex: Reunião de Diretoria" required>
-            </div>
-
-            <div class="form-row form-row-3">
-              <div class="form-group">
-                <label for="data-evento">Data</label>
-                <input type="date" id="data-evento" name="data_evento" required>
-              </div>
-              <div class="form-group">
-                <label for="hora-inicio">Início</label>
-                <input type="time" id="hora-inicio" name="hora_inicio" required>
-              </div>
-              <div class="form-group">
-                <label for="hora-fim">Fim</label>
-                <input type="time" id="hora-fim" name="hora_fim" required>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="qtd-participantes">Quantidade de Participantes</label>
-              <input type="number" id="qtd-participantes" name="qtd_participantes" placeholder="Ex: 50" min="1" required>
-            </div>
-
-            <div class="form-group">
-              <label for="observacoes">Observações</label>
-              <textarea id="observacoes" name="observacoes" rows="2" placeholder="Informações adicionais..."></textarea>
-            </div>
-
-            <div id="agendamento-feedback" class="feedback" aria-live="polite"></div>
-
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary btn-full" id="agendamento-btn">Confirmar Agendamento</button>
-              <button type="button" class="btn btn-outline btn-full" id="cancel-edit-btn" style="display:none;">Cancelar</button>
-            </div>
-          </form>
-        </div>
-      </aside>
-
-      <section class="dashboard-col-right">
-
-        <div class="card card-highlight" id="proximo-evento-card">
-          <div class="card-header">
-            <h2>Próximo Evento</h2>
-          </div>
-          <div class="card-body" id="proximo-evento-content">
-            <p class="empty-state">Nenhum evento próximo agendado.</p>
-          </div>
+          <button type="button" class="btn btn-primary" id="novo-agendamento-btn">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Agendar Horário
+          </button>
         </div>
 
-        <div class="card card-table">
-          <div class="card-header">
-            <h2>Agendamentos</h2>
-          </div>
-          <div class="card-body card-body-table">
-            <div class="search-bar">
-              <input type="text" id="busca-agendamentos" placeholder="Buscar por nome ou data..." autocomplete="off">
-            </div>
-            <div class="table-scroll">
-              <table id="tabela-agendamentos">
-                <thead>
-                  <tr>
-                    <th>Evento</th>
-                    <th>Data</th>
-                    <th>Início</th>
-                    <th>Fim</th>
-                    <th>Part.</th>
-                    <th class="th-actions">Ações</th>
-                  </tr>
-                </thead>
-                <tbody id="tabela-agendamentos-body">
-                  <tr class="empty-row">
-                    <td colspan="6" class="empty-state">Nenhum agendamento encontrado.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <div id="operation-status" class="operation-status" role="status" aria-live="polite" hidden></div>
 
+        <section class="next-event-card" aria-labelledby="next-event-title">
+          <div class="section-label">
+            <span class="section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2z"/></svg>
+            </span>
+            <h2 id="next-event-title">Próximo Evento</h2>
+          </div>
+          <div id="proximo-evento-content" class="next-event-content" aria-live="polite">
+            <div class="next-event-loading" aria-label="Carregando próximo evento"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-line"></span></div>
+          </div>
+        </section>
+
+        <section class="schedule-section" aria-labelledby="schedule-title">
+          <div class="schedule-heading">
+            <div>
+              <h2 id="schedule-title">Agendamentos</h2>
+              <p>Todos os horários reservados para o espaço.</p>
+            </div>
+            <label class="search-field" for="busca-agendamentos">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <span class="sr-only">Buscar agendamentos</span>
+              <input type="search" id="busca-agendamentos" placeholder="Buscar por evento ou data..." autocomplete="off">
+            </label>
+          </div>
+
+          <div id="list-state" class="list-state" role="status" aria-live="polite" aria-busy="true"></div>
+
+          <div id="schedule-table-view" class="table-wrap" hidden>
+            <table id="tabela-agendamentos">
+              <thead>
+                <tr>
+                  <th>Evento</th>
+                  <th>Data</th>
+                  <th>Horário</th>
+                  <th class="cell-center">Participantes</th>
+                  <th class="cell-actions">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabela-agendamentos-body"></tbody>
+            </table>
+          </div>
+          <div id="schedule-cards-view" class="schedule-cards" hidden></div>
+        </section>
       </section>
 
-    </div>
-    </div>
+      <section id="view-novo-agendamento" class="view-section hidden" aria-labelledby="form-title">
+        <div class="form-page">
+          <button type="button" class="btn btn-back" id="voltar-agendamentos-btn">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            Voltar para Agendamentos
+          </button>
 
-    <div class="tab-content" id="tab-ci">
-      <div class="ci-container">
-        <div class="ci-disabled-overlay" id="ci-disabled-overlay">
-          <div class="ci-permission-banner">
-            <h2>Acesso Restrito</h2>
-            <p>Você não tem autorização para gerar Comunicação Interna no sistema. Solicite o acesso ao Administrador.</p>
+          <div class="form-page-header">
+            <p class="eyebrow">Reserva do espaço</p>
+            <h1 id="form-title" tabindex="-1">Novo Agendamento</h1>
+            <p>Escolha uma data, encontre um horário livre e confirme os dados do evento.</p>
           </div>
-        </div>
 
-        <div class="ci-content" id="ci-content">
-          <div class="dashboard-grid">
-            <aside class="dashboard-col-left">
-              <div class="card card-form">
-                <div class="card-header">
-                  <h2>Nova Comunicação Interna</h2>
-                  <p>Preencha os dados para gerar o documento.</p>
+          <div class="form-card">
+            <ol class="wizard-progress" aria-label="Etapas do agendamento">
+              <li class="active" data-wizard-indicator="1" aria-current="step"><span>1</span><strong>Data</strong></li>
+              <li data-wizard-indicator="2"><span>2</span><strong>Horário</strong></li>
+              <li data-wizard-indicator="3"><span>3</span><strong>Evento</strong></li>
+            </ol>
+
+            <form id="agendamento-form" novalidate>
+              <input type="hidden" id="editing-id" value="">
+
+              <section class="wizard-step" data-wizard-step="1" aria-labelledby="wizard-step-1-title">
+                <div class="wizard-step-heading">
+                  <p class="wizard-step-kicker">Etapa 1 de 3</p>
+                  <h2 id="wizard-step-1-title">Escolha a data</h2>
+                  <p>Os horários abaixo seguem o fuso de Campo Grande (MS).</p>
                 </div>
-                <form id="ci-form" novalidate>
-                  <input type="hidden" id="ci-editing-id" value="">
-                  <div class="form-group">
-                    <label for="ci-tipo">Tipo de Documento</label>
-                    <select id="ci-tipo" name="ci_tipo" required>
-                      <option value="comunicacao_interna">Comunicação Interna</option>
-                      <option value="solicitacao_material">Solicitação de Material</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="ci-de">De (Setor de Origem)</label>
-                    <input type="text" id="ci-de" name="ci_de" placeholder="Ex: Secretaria da Saúde" required maxlength="255">
-                  </div>
-                  <div class="form-group">
-                    <label for="ci-para">Para (Setor de Destino)</label>
-                    <input type="text" id="ci-para" name="ci_para" placeholder="Ex: Gabinete do Prefeito" required maxlength="255">
-                  </div>
-                  <div class="form-group">
-                    <label for="ci-titulo">Título</label>
-                    <input type="text" id="ci-titulo" name="ci_titulo" placeholder="Ex: Convocação para Reunião" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="ci-data">Data</label>
-                    <input type="date" id="ci-data" name="ci_data" required>
-                  </div>
-                  <div id="ci-signatario-fields">
-                    <div class="form-row">
-                      <div class="form-group">
-                        <label for="ci-nome">Nome</label>
-                        <input type="text" id="ci-nome" name="ci_nome" placeholder="Seu nome" required maxlength="255">
-                      </div>
-                      <div class="form-group">
-                        <label for="ci-sobrenome">Sobrenome</label>
-                        <input type="text" id="ci-sobrenome" name="ci_sobrenome" placeholder="Seu sobrenome" required maxlength="255">
-                      </div>
+
+                <div class="form-group date-field">
+                  <label for="data-evento">Data <span aria-hidden="true">*</span></label>
+                  <input type="date" id="data-evento" name="data_evento" required>
+                </div>
+
+                <section class="availability-panel" aria-labelledby="availability-title">
+                  <div class="availability-heading">
+                    <div>
+                      <h3 id="availability-title">Disponibilidade do auditório</h3>
+                      <p id="availability-status" role="status" aria-live="polite">Selecione uma data para consultar os horários.</p>
                     </div>
-                    <div class="form-group">
-                      <label for="ci-cargo">Cargo</label>
-                      <input type="text" id="ci-cargo" name="ci_cargo" placeholder="Seu cargo" required maxlength="255">
+                    <div class="timeline-legend" aria-label="Legenda">
+                      <span><i class="legend-free"></i>Livre</span>
+                      <span><i class="legend-occupied"></i>Ocupado</span>
+                      <span><i class="legend-lunch"></i>Almoço</span>
                     </div>
                   </div>
-                  <div class="form-group">
-                    <label for="ci-descricao">Descrição</label>
-                    <textarea id="ci-descricao" name="ci_descricao" rows="4" placeholder="Descreva o conteúdo da comunicação..."></textarea>
-                  </div>
-                  <div id="ci-feedback" class="feedback" aria-live="polite"></div>
-                  <div class="form-actions">
-                    <button type="submit" class="btn btn-primary btn-full" id="ci-btn">Gerar e Baixar CI</button>
-                    <button type="button" class="btn btn-outline btn-full" id="ci-cancel-edit-btn" style="display:none;">Cancelar</button>
-                  </div>
-                </form>
-              </div>
-            </aside>
+                  <div id="availability-timeline" class="availability-timeline" hidden></div>
+                  <div id="availability-details" class="availability-details"></div>
+                </section>
+              </section>
 
-            <section class="dashboard-col-right">
-              <div class="card card-table">
-                <div class="card-header">
-                  <h2>Comunicações Internas</h2>
+              <section class="wizard-step" data-wizard-step="2" aria-labelledby="wizard-step-2-title" hidden>
+                <div class="wizard-step-heading">
+                  <p class="wizard-step-kicker">Etapa 2 de 3</p>
+                  <h2 id="wizard-step-2-title">Defina o horário</h2>
+                  <p id="selected-date-label">Escolha um intervalo livre na data selecionada.</p>
                 </div>
-                <div class="card-body card-body-table">
-                  <div class="search-bar">
-                    <input type="text" id="busca-cis" placeholder="Buscar por título, de, para ou emitente..." autocomplete="off">
+
+                <div class="schedule-policy-note">
+                  <strong>Expediente:</strong> 07:00–11:00 e 13:00–20:00.
+                  Eventos não podem atravessar a pausa para almoço.
+                </div>
+
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="hora-inicio">Horário de Início <span aria-hidden="true">*</span></label>
+                    <input type="time" id="hora-inicio" name="hora_inicio" step="60" required>
                   </div>
-                  <div class="table-scroll">
-                    <table id="tabela-cis">
-                      <thead>
-                        <tr>
-                          <th>Nº</th>
-                          <th>Tipo</th>
-                          <th>Título</th>
-                          <th>De</th>
-                          <th>Para</th>
-                          <th>Data</th>
-                          <th>Emitido por</th>
-                          <th class="th-actions">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody id="tabela-cis-body">
-                        <tr class="empty-row">
-                          <td colspan="8" class="empty-state">Nenhuma Comunicação Interna encontrada.</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  <div class="form-group">
+                    <label for="hora-fim">Horário de Fim <span aria-hidden="true">*</span></label>
+                    <input type="time" id="hora-fim" name="hora_fim" step="60" required>
                   </div>
+                </div>
+              </section>
+
+              <section class="wizard-step" data-wizard-step="3" aria-labelledby="wizard-step-3-title" hidden>
+                <div class="wizard-step-heading">
+                  <p class="wizard-step-kicker">Etapa 3 de 3</p>
+                  <h2 id="wizard-step-3-title">Informe os dados do evento</h2>
+                  <p>Revise a reserva antes de confirmar.</p>
+                </div>
+
+                <div class="form-group form-group-wide">
+                  <label for="nome-evento">Nome do Evento <span aria-hidden="true">*</span></label>
+                  <input type="text" id="nome-evento" name="nome_evento" placeholder="Ex: Reunião de Diretoria" minlength="3" required>
+                </div>
+
+                <div class="form-grid event-details-grid">
+                  <div class="form-group">
+                    <label for="qtd-participantes">Participantes <span aria-hidden="true">*</span></label>
+                    <input type="number" id="qtd-participantes" name="qtd_participantes" placeholder="Ex: 50" min="1" required>
+                  </div>
+                  <div class="booking-summary" aria-labelledby="booking-summary-title">
+                    <strong id="booking-summary-title">Reserva selecionada</strong>
+                    <span id="booking-summary-date">Data não informada</span>
+                    <span id="booking-summary-time">Horário não informado</span>
+                  </div>
+                </div>
+
+                <div class="form-group form-group-wide">
+                  <label for="observacoes">Observações <span class="optional">Opcional</span></label>
+                  <textarea id="observacoes" name="observacoes" rows="4" placeholder="Informações adicionais sobre o evento..."></textarea>
+                </div>
+              </section>
+
+              <div id="agendamento-feedback" class="feedback" aria-live="polite"></div>
+
+              <div class="form-actions">
+                <button type="button" class="btn btn-outline" id="cancel-edit-btn">Cancelar</button>
+                <div class="wizard-navigation">
+                  <button type="button" class="btn btn-outline" id="wizard-back-btn" hidden>Anterior</button>
+                  <button type="button" class="btn btn-primary" id="wizard-next-btn">Continuar</button>
+                  <button type="submit" class="btn btn-primary" id="agendamento-btn" hidden>Confirmar Agendamento</button>
                 </div>
               </div>
-            </section>
+            </form>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 
-  <div id="modal-overlay" class="modal-overlay">
-    <div class="modal-card">
+  <div id="modal-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
+      <div class="modal-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      </div>
+      <h2 id="modal-title">Confirmar ação</h2>
       <div class="modal-body" id="modal-message"></div>
       <div class="modal-actions" id="modal-actions"></div>
     </div>
   </div>
 
-  <link rel="stylesheet" href="jodit.min.css?v=3">
-  <script src="jodit.min.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

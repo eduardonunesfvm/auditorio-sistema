@@ -1,254 +1,220 @@
 import uuid
-from fastapi import HTTPException, status
-from fastapi.responses import Response
-from app.repository import AgendamentoRepository, UsuarioRepository, ComunicacaoInternaRepository
-from app.schemas import AgendamentoCreate, UsuarioCreate, AgendamentoUpdate, ComunicacaoInternaCreate, ComunicacaoInternaUpdate
-from app.models import Agendamento, Usuario, UserRole, ComunicacaoInterna
-from app.security import verificar_senha, criar_token_acesso, gerar_senha_hash
 from uuid import UUID
-from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML
-from datetime import date
-import os
-import base64
+
+from fastapi import HTTPException, status
+from sqlalchemy.exc import DBAPIError
+
+from app.models import Agendamento, Usuario, UserRole
+from app.repository import AgendamentoRepository, UsuarioRepository
+from app.schemas import AgendamentoCreate, AgendamentoUpdate, UsuarioCreate
+from app.scheduling import (
+    AUDITORIUM_TIMEZONE_NAME,
+    LUNCH_END,
+    LUNCH_START,
+    WORKDAY_END,
+    WORKDAY_START,
+    format_schedule_time,
+    is_valid_schedule_window,
+)
+from app.security import criar_token_acesso, gerar_senha_hash, verificar_senha
+
 
 class AgendamentoService:
     def __init__(self, repo: AgendamentoRepository):
         self.repo = repo
 
-    def criar_novo_agendamento(self, dados: AgendamentoCreate, usuario_id: uuid.UUID) -> Agendamento:
-        # 1. Validação de consistência básica do horário
-        if dados.hora_inicio >= dados.hora_fim:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A hora de início deve ser menor que a hora de término."
-            )
-
-        # 2. Executa a regra de ouro: verificar choque de horários no banco
+    def criar_novo_agendamento(
+        self,
+        dados: AgendamentoCreate,
+        usuario_id: uuid.UUID,
+    ) -> Agendamento:
+        self._validar_janela(dados.hora_inicio, dados.hora_fim)
         conflitos = self.repo.buscar_conflitos(
-            data=dados.data_evento,
-            hora_inicio=dados.hora_inicio,
-            hora_fim=dados.hora_fim
+            dados.data_evento,
+            dados.hora_inicio,
+            dados.hora_fim,
         )
-
         if conflitos:
-            # Pegamos o nome do primeiro evento conflitante para dar um feedback rico na tela
-            evento_conflito = conflitos[0].nome_evento
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Conflito de horários! O auditório já está reservado para o evento '{evento_conflito}' neste intervalo."
-            )
+            self._raise_schedule_conflict()
 
-        # 3. Se passou pelas validações, transforma o Schema em Modelo e salva
-        novo_agendamento = Agendamento(
+        agendamento = Agendamento(
             nome_evento=dados.nome_evento,
             data_evento=dados.data_evento,
             hora_inicio=dados.hora_inicio,
             hora_fim=dados.hora_fim,
             quantidade_participantes=dados.quantidade_participantes,
             observacoes=dados.observacoes,
-            usuario_id=usuario_id
+            usuario_id=usuario_id,
         )
+        try:
+            return self.repo.criar(agendamento)
+        except DBAPIError as exc:
+            self.repo.rollback()
+            if self._is_schedule_conflict(exc):
+                self._raise_schedule_conflict()
+            raise
 
-        return self.repo.criar(novo_agendamento)
-    
     def listar_agendamentos(self):
         return self.repo.listar_todos()
 
     def obter_proximo_evento(self):
         return self.repo.buscar_proximo_evento()
 
-    def atualizar_agendamento(self, agendamento_id: UUID, dados: AgendamentoUpdate, usuario_id: UUID):
+    def obter_disponibilidade(
+        self,
+        data_evento,
+        usuario: Usuario,
+        agendamento_id: UUID | None = None,
+    ) -> dict:
+        if agendamento_id is not None:
+            if usuario.role == UserRole.VISUALIZADOR:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Seu perfil possui apenas permissão para visualização.",
+                )
+            agendamento = self.repo.buscar_por_id(agendamento_id)
+            if not agendamento:
+                raise HTTPException(status_code=404, detail="Agendamento não encontrado.")
+            if agendamento.usuario_id != usuario.id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Acesso negado para consultar a disponibilidade desta edição.",
+                )
+
+        ocupados = self.repo.listar_por_data(data_evento, excluir_id=agendamento_id)
+        return {
+            "data": data_evento,
+            "timezone": AUDITORIUM_TIMEZONE_NAME,
+            "jornada": {
+                "inicio": format_schedule_time(WORKDAY_START),
+                "fim": format_schedule_time(WORKDAY_END),
+            },
+            "bloqueios": [
+                {
+                    "inicio": format_schedule_time(LUNCH_START),
+                    "fim": format_schedule_time(LUNCH_END),
+                    "tipo": "almoco",
+                }
+            ],
+            "ocupados": [
+                {
+                    "inicio": format_schedule_time(item.hora_inicio),
+                    "fim": format_schedule_time(item.hora_fim),
+                }
+                for item in ocupados
+            ],
+        }
+
+    def atualizar_agendamento(
+        self,
+        agendamento_id: UUID,
+        dados: AgendamentoUpdate,
+        usuario_id: UUID,
+    ):
         agendamento = self.repo.buscar_por_id(agendamento_id)
         if not agendamento:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento não encontrado.")
-        
-        # Garante que só quem criou (ou admin) pode editar
+            raise HTTPException(status_code=404, detail="Agendamento não encontrado.")
         if agendamento.usuario_id != usuario_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado para alterar este agendamento. Somente o criador do evento pode editar o evento")
-            
-        return self.repo.atualizar(agendamento, dados)
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Acesso negado para alterar este agendamento. "
+                    "Somente o criador do evento pode editar o evento."
+                ),
+            )
+
+        alteracoes = dados.model_dump(exclude_unset=True)
+        data_final = alteracoes.get("data_evento", agendamento.data_evento)
+        inicio_final = alteracoes.get("hora_inicio", agendamento.hora_inicio)
+        fim_final = alteracoes.get("hora_fim", agendamento.hora_fim)
+        self._validar_janela(inicio_final, fim_final)
+
+        conflitos = self.repo.buscar_conflitos(
+            data_final,
+            inicio_final,
+            fim_final,
+            excluir_id=agendamento.id,
+        )
+        if conflitos:
+            self._raise_schedule_conflict()
+
+        try:
+            return self.repo.atualizar(agendamento, dados)
+        except DBAPIError as exc:
+            self.repo.rollback()
+            if self._is_schedule_conflict(exc):
+                self._raise_schedule_conflict()
+            raise
 
     def deletar_agendamento(self, agendamento_id: UUID, usuario_id: UUID):
         agendamento = self.repo.buscar_por_id(agendamento_id)
         if not agendamento:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento não encontrado.")
-        
+            raise HTTPException(status_code=404, detail="Agendamento não encontrado.")
         if agendamento.usuario_id != usuario_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado para excluir este agendamento.")
-            
+            raise HTTPException(
+                status_code=403,
+                detail="Acesso negado para excluir este agendamento.",
+            )
         self.repo.deletar(agendamento)
-    
+
+    @staticmethod
+    def _validar_janela(hora_inicio, hora_fim) -> None:
+        if not is_valid_schedule_window(hora_inicio, hora_fim):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "invalid_schedule_window",
+                    "message": (
+                        "Escolha um horário entre 07:00 e 11:00 ou entre "
+                        "13:00 e 20:00. O evento não pode atravessar o almoço."
+                    ),
+                },
+            )
+
+    @staticmethod
+    def _raise_schedule_conflict() -> None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_conflict",
+                "message": "O horário selecionado não está mais disponível.",
+            },
+        )
+
+    @staticmethod
+    def _is_schedule_conflict(exc: DBAPIError) -> bool:
+        original = getattr(exc, "orig", None)
+        sqlstate = getattr(original, "pgcode", None) or getattr(
+            original,
+            "sqlstate",
+            None,
+        )
+        return sqlstate in {"23P01", "40P01"}
+
 
 class AuthService:
     def __init__(self, repo: UsuarioRepository):
         self.repo = repo
 
     def autenticar_usuario(self, login: str, senha_pura: str) -> dict:
-        """Valida as credenciais e retorna o token de acesso."""
-        # 1. Busca o usuário via repositório
         usuario = self.repo.buscar_por_login(login)
-        
-        # 2. Se não achar ou a senha não bater, estoura 401 (mensagem genérica por segurança)
         if not usuario or not verificar_senha(senha_pura, usuario.senha_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Usuário ou senha incorretos.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            
-        # 3. Gera o token com o UUID real do usuário do banco
-        token = criar_token_acesso(usuario_id=usuario.id, role=usuario.role, permissions=usuario.permissions or [])
-        
         return {
-            "access_token": token,
+            "access_token": criar_token_acesso(usuario.id, usuario.role),
             "token_type": "bearer",
-            "role": usuario.role
+            "role": usuario.role,
         }
 
-
     def cadastrar_novo_usuario(self, payload: UsuarioCreate) -> Usuario:
-        """Gera o hash da senha e salva o usuário através do repositório."""
-        # 1. Transforma a senha digitada em um hash seguro antes de mandar pro banco
-        senha_criptografada = gerar_senha_hash(payload.senha)
-        
-        role = payload.role or UserRole.SUPERINTENDENTE
-        
-        # 2. Cria a instância do modelo do banco
-        novo_usuario = Usuario(
+        usuario = Usuario(
             nome=payload.nome,
             login=payload.login,
-            senha_hash=senha_criptografada,
-            role=role
+            senha_hash=gerar_senha_hash(payload.senha),
+            role=payload.role or UserRole.SUPERINTENDENTE,
         )
-        
-        # 3. Manda pro repositório salvar
-        return self.repo.criar_usuario(novo_usuario)
-
-
-class ComunicacaoInternaService:
-    ERIKA = {
-        "nome": "Erika Siqueira Souza Battistelli",
-        "cargo": "Superintendente de Gestão, Educação, Humanização em saúde",
-        "decreto": "Decreto nº 340, de 16/07/2025",
-    }
-
-    def __init__(self, repo: ComunicacaoInternaRepository):
-        self.repo = repo
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
-        self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
-        banner_path = os.path.join(template_dir, "secretariabanner.png")
-        self.banner_src = self._load_banner_base64(banner_path)
-
-    def _load_banner_base64(self, path: str) -> str:
-        try:
-            with open(path, "rb") as f:
-                data = base64.b64encode(f.read()).decode("utf-8")
-            return f"data:image/png;base64,{data}"
-        except Exception:
-            return ""
-
-    def _render_template(self, numero_ci: int, tipo: str, de: str, para: str, titulo: str, descricao: str, data_str: str, nome_signatario: str, sobrenome_signatario: str, cargo_signatario: str) -> str:
-        template = self.jinja_env.get_template("ci_template.html")
-        is_solicitacao = tipo == "solicitacao_material"
-        return template.render(
-            banner_src=self.banner_src,
-            numero_ci=numero_ci,
-            is_solicitacao=is_solicitacao,
-            de=de,
-            para=para,
-            titulo=titulo,
-            descricao=descricao,
-            data=data_str,
-            nome_signatario=nome_signatario or "",
-            sobrenome_signatario=sobrenome_signatario or "",
-            cargo_signatario=cargo_signatario or "",
-        )
-
-    def _calcular_proximo_numero(self) -> int:
-        max_numero = self.repo.obter_max_numero_ci()
-        proximo = (max_numero or 0) + 1
-        return ((proximo - 1) % 100) + 1
-
-    def criar_e_gerar_pdf(self, dados: ComunicacaoInternaCreate, usuario: Usuario) -> bytes:
-        numero_ci = self._calcular_proximo_numero()
-
-        nova_ci = ComunicacaoInterna(
-            numero_ci=numero_ci,
-            tipo=dados.tipo,
-            de=dados.de,
-            para=dados.para,
-            titulo=dados.titulo,
-            descricao=dados.descricao,
-            data=dados.data,
-            nome_signatario=dados.nome_signatario,
-            sobrenome_signatario=dados.sobrenome_signatario,
-            cargo_signatario=dados.cargo_signatario,
-            usuario_id=usuario.id,
-        )
-        self.repo.criar(nova_ci)
-
-        html_renderizado = self._render_template(
-            numero_ci=numero_ci,
-            tipo=nova_ci.tipo,
-            de=nova_ci.de,
-            para=nova_ci.para,
-            titulo=nova_ci.titulo,
-            descricao=nova_ci.descricao,
-            data_str=nova_ci.data.strftime("%d/%m/%Y"),
-            nome_signatario=nova_ci.nome_signatario or "",
-            sobrenome_signatario=nova_ci.sobrenome_signatario or "",
-            cargo_signatario=nova_ci.cargo_signatario or "",
-        )
-
-        pdf_bytes = HTML(string=html_renderizado).write_pdf()
-        return pdf_bytes
-
-    def gerar_pdf_por_id(self, ci_id: UUID) -> bytes:
-        ci = self.repo.buscar_por_id(ci_id)
-        if not ci:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicação Interna não encontrada.")
-
-        html_renderizado = self._render_template(
-            numero_ci=ci.numero_ci,
-            tipo=ci.tipo,
-            de=ci.de,
-            para=ci.para,
-            titulo=ci.titulo,
-            descricao=ci.descricao,
-            data_str=ci.data.strftime("%d/%m/%Y"),
-            nome_signatario=ci.nome_signatario or "",
-            sobrenome_signatario=ci.sobrenome_signatario or "",
-            cargo_signatario=ci.cargo_signatario or "",
-        )
-
-        pdf_bytes = HTML(string=html_renderizado).write_pdf()
-        return pdf_bytes
-
-    def atualizar_ci(self, ci_id: UUID, dados: ComunicacaoInternaUpdate, usuario: Usuario) -> bytes:
-        ci = self.repo.buscar_por_id(ci_id)
-        if not ci:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comunicação Interna não encontrada.")
-
-        self.repo.atualizar(ci, dados)
-
-        html_renderizado = self._render_template(
-            numero_ci=ci.numero_ci,
-            tipo=ci.tipo,
-            de=ci.de,
-            para=ci.para,
-            titulo=ci.titulo,
-            descricao=ci.descricao,
-            data_str=ci.data.strftime("%d/%m/%Y"),
-            nome_signatario=ci.nome_signatario or "",
-            sobrenome_signatario=ci.sobrenome_signatario or "",
-            cargo_signatario=ci.cargo_signatario or "",
-        )
-
-        pdf_bytes = HTML(string=html_renderizado).write_pdf()
-        return pdf_bytes
-
-    def listar_cis(self, usuario: Usuario) -> list[ComunicacaoInterna]:
-        if usuario.role == UserRole.ADMIN:
-            return self.repo.listar_todas()
-        return self.repo.listar_por_usuario(usuario.id)
+        return self.repo.criar_usuario(usuario)

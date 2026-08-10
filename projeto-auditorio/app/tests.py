@@ -72,22 +72,6 @@ def _criar_usuario(db, nome="Admin", login="admin", senha="123456", role=UserRol
     return usuario
 
 
-def _criar_usuario_com_permissions(db, nome="Admin", login="admin", senha="123456", role=UserRole.SUPERINTENDENTE, permissions=None):
-    if permissions is None:
-        permissions = []
-    usuario = Usuario(
-        nome=nome,
-        login=login,
-        senha_hash=gerar_senha_hash(senha),
-        role=role,
-        permissions=permissions,
-    )
-    db.add(usuario)
-    db.commit()
-    db.refresh(usuario)
-    return usuario
-
-
 def _obter_token(client, login="admin", senha="123456"):
     res = client.post("/auth/login", json={"login": login, "senha": senha})
     assert res.status_code == 200, res.text
@@ -161,8 +145,8 @@ class TestAgendamentosCriar:
         payload = {
             "nome_evento": "Workshop",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
 
         res = client.post(
@@ -198,8 +182,11 @@ class TestAgendamentosCriar:
         assert r1.status_code == 201
 
         r2 = client.post("/agendamentos/criar_agendamento", json=p2, headers=_auth_headers(token))
-        assert r2.status_code == 400
-        assert "conflito" in r2.json()["detail"].lower()
+        assert r2.status_code == 409
+        assert r2.json()["detail"] == {
+            "code": "schedule_conflict",
+            "message": "O horário selecionado não está mais disponível.",
+        }
 
     def test_criar_agendamento_sem_conflito_mesmo_dia(self, client, db_session):
         _criar_usuario(db_session)
@@ -208,15 +195,15 @@ class TestAgendamentosCriar:
         p1 = {
             "nome_evento": "Evento A",
             "data_evento": "2026-12-15",
-            "hora_inicio": "08:00",
-            "hora_fim": "10:00",
+            "hora_inicio": "07:00",
+            "hora_fim": "09:00",
         }
 
         p2 = {
             "nome_evento": "Evento B",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
 
         r1 = client.post("/agendamentos/criar_agendamento", json=p1, headers=_auth_headers(token))
@@ -243,7 +230,7 @@ class TestAgendamentosCriar:
         )
 
         assert res.status_code == 400
-        assert "hora" in res.json()["detail"].lower()
+        assert res.json()["detail"]["code"] == "invalid_schedule_window"
 
     def test_criar_agendamento_sem_token(self, client):
         payload = {
@@ -413,8 +400,8 @@ class TestAgendamentosAtualizar:
             json={
                 "nome_evento": "Evento para teste",
                 "data_evento": "2026-12-15",
-                "hora_inicio": "10:00",
-                "hora_fim": "12:00",
+                "hora_inicio": "09:00",
+                "hora_fim": "11:00",
             },
             headers=_auth_headers(token),
         )
@@ -475,8 +462,8 @@ class TestAgendamentosDeletar:
             json={
                 "nome_evento": "Evento para deletar",
                 "data_evento": "2026-12-15",
-                "hora_inicio": "10:00",
-                "hora_fim": "12:00",
+                "hora_inicio": "09:00",
+                "hora_fim": "11:00",
             },
             headers=_auth_headers(token),
         )
@@ -523,8 +510,8 @@ class TestRoleBasedAccess:
         payload = {
             "nome_evento": "Evento Bloqueado",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
         res = client.post(
             "/agendamentos/criar_agendamento",
@@ -594,8 +581,8 @@ class TestRoleBasedAccess:
         payload = {
             "nome_evento": "Evento Permitido",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
         res = client.post(
             "/agendamentos/criar_agendamento",
@@ -643,314 +630,274 @@ class TestRoleBasedAccess:
         assert data["role"] == "superintendente"
 
 
-class TestComunicacaoInterna:
-
-    # ── POST /api/v1/ci ──────────────────────────────────────────
-
-    def test_criar_ci_admin_sucesso(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
-        token = _obter_token(client)
-
-        res = client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-
-        assert res.status_code == 200
-        assert res.headers["content-type"] == "application/pdf"
-
-    def test_criar_ci_superintendente_com_permissao(self, client, db_session):
-        _criar_usuario_com_permissions(db_session, login="sup_ci", permissions=["ci"])
-        token = _obter_token(client, login="sup_ci")
-
-        res = client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-
-        assert res.status_code == 200
-        assert res.headers["content-type"] == "application/pdf"
-
-    def test_criar_ci_superintendente_sem_permissao(self, client, db_session):
-        _criar_usuario(db_session, login="sup_sem")
-        token = _obter_token(client, login="sup_sem")
-
-        res = client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-
-        assert res.status_code == 403
-
-    def test_criar_ci_visualizador_mesmo_com_permissao(self, client, db_session):
-        _criar_usuario_com_permissions(db_session, login="vis_ci", role=UserRole.VISUALIZADOR, permissions=["ci"])
-        token = _obter_token(client, login="vis_ci")
-
-        res = client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-
-        assert res.status_code == 403
-
-    def test_criar_ci_sem_token(self, client, db_session):
+class TestPoliticaDeHorarios:
+    @pytest.mark.parametrize(
+        ("inicio", "fim"),
+        [
+            ("07:00", "11:00"),
+            ("13:00", "20:00"),
+            ("18:30", "19:30"),
+            ("07:00:30", "08:00:30"),
+        ],
+    )
+    def test_aceita_limites_e_preserva_precisao_existente(
+        self,
+        client,
+        db_session,
+        inicio,
+        fim,
+    ):
         _criar_usuario(db_session)
-
-        res = client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Teste", "data": "2026-12-15", "descricao": "Descricao de teste", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-        )
-
-        assert res.status_code == 401
-
-    def test_criar_ci_campos_faltando(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
         token = _obter_token(client)
 
         res = client.post(
-            "/api/v1/ci",
-            json={"titulo": "Sem data nem descricao"},
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento dentro do expediente",
+                "data_evento": "2027-01-10",
+                "hora_inicio": inicio,
+                "hora_fim": fim,
+            },
             headers=_auth_headers(token),
         )
 
-        assert res.status_code == 422
+        assert res.status_code == 201, res.text
 
-    def test_criar_ci_numero_sequencial(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
-        token = _obter_token(client)
-
-        r1 = client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI 1", "data": "2026-12-15", "descricao": "Primeira CI", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-        assert r1.status_code == 200
-
-        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
-        cis = list_res.json()
-        numeros = sorted([ci["numero_ci"] for ci in cis])
-        assert numeros[0] == 1
-
-        r2 = client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI 2", "data": "2026-12-16", "descricao": "Segunda CI", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-        assert r2.status_code == 200
-
-        list_res2 = client.get("/api/v1/ci", headers=_auth_headers(token))
-        cis2 = list_res2.json()
-        numeros2 = sorted([ci["numero_ci"] for ci in cis2])
-        assert numeros2 == [1, 2]
-
-    # ── GET /api/v1/ci ───────────────────────────────────────────
-
-    def test_listar_vazio(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
-        token = _obter_token(client)
-
-        res = client.get("/api/v1/ci", headers=_auth_headers(token))
-
-        assert res.status_code == 200
-        assert res.json() == []
-
-    def test_listar_com_cis(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
-        token = _obter_token(client)
-
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Lista", "data": "2026-12-15", "descricao": "Descricao da CI", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-
-        res = client.get("/api/v1/ci", headers=_auth_headers(token))
-
-        assert res.status_code == 200
-        data = res.json()
-        assert len(data) == 1
-        assert data[0]["titulo"] == "CI Lista"
-        assert "criador_nome" in data[0]
-        assert data[0]["criador_nome"] != ""
-
-    def test_listar_admin_ve_todas(self, client, db_session):
-        _criar_usuario_com_permissions(db_session, login="user_a", permissions=["ci"])
-        token_a = _obter_token(client, login="user_a")
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token_a),
-        )
-
-        _criar_usuario(db_session, login="admin_user", role=UserRole.ADMIN)
-        token_admin = _obter_token(client, login="admin_user")
-
-        res = client.get("/api/v1/ci", headers=_auth_headers(token_admin))
-
-        assert res.status_code == 200
-        data = res.json()
-        assert len(data) == 1
-
-    def test_listar_superintendente_ve_apenas_proprias(self, client, db_session):
-        _criar_usuario_com_permissions(db_session, login="user_a", permissions=["ci"])
-        token_a = _obter_token(client, login="user_a")
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI do User A", "data": "2026-12-15", "descricao": "Desc A", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token_a),
-        )
-
-        _criar_usuario_com_permissions(db_session, login="user_b", nome="User B", permissions=["ci"])
-        token_b = _obter_token(client, login="user_b")
-
-        res = client.get("/api/v1/ci", headers=_auth_headers(token_b))
-
-        assert res.status_code == 200
-        data = res.json()
-        assert len(data) == 0
-
-    def test_visualizador_pode_listar(self, client, db_session):
-        _criar_usuario_com_permissions(db_session, login="user_a", permissions=["ci"])
-        token_a = _obter_token(client, login="user_a")
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI 1", "data": "2026-12-15", "descricao": "Desc 1", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token_a),
-        )
-
-        _criar_usuario(db_session, login="vis", role=UserRole.VISUALIZADOR)
-        token_vis = _obter_token(client, login="vis")
-
-        res = client.get("/api/v1/ci", headers=_auth_headers(token_vis))
-
-        assert res.status_code == 200
-
-    def test_listar_sem_token(self, client, db_session):
+    @pytest.mark.parametrize(
+        ("inicio", "fim"),
+        [
+            ("06:59", "08:00"),
+            ("10:00", "13:00"),
+            ("11:00", "13:00"),
+            ("13:00", "20:01"),
+            ("14:00", "14:00"),
+            ("15:00", "14:00"),
+        ],
+    )
+    def test_rejeita_intervalos_fora_da_politica(
+        self,
+        client,
+        db_session,
+        inicio,
+        fim,
+    ):
         _criar_usuario(db_session)
-
-        res = client.get("/api/v1/ci")
-
-        assert res.status_code == 401
-
-    # ── GET /api/v1/ci/{id}/pdf ───────────────────────────────────
-
-    def test_baixar_pdf_sucesso(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
         token = _obter_token(client)
 
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
+        res = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento inválido",
+                "data_evento": "2027-01-11",
+                "hora_inicio": inicio,
+                "hora_fim": fim,
+            },
             headers=_auth_headers(token),
         )
 
-        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
-        ci_id = list_res.json()[0]["id"]
+        assert res.status_code == 400
+        assert res.json()["detail"]["code"] == "invalid_schedule_window"
 
-        res = client.get(f"/api/v1/ci/{ci_id}/pdf", headers=_auth_headers(token))
 
-        assert res.status_code == 200
-        assert res.headers["content-type"] == "application/pdf"
-
-    def test_baixar_pdf_inexistente(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
+class TestDisponibilidade:
+    def test_retorna_contrato_minimo_e_ocupados_ordenados(self, client, db_session):
+        _criar_usuario(db_session)
         token = _obter_token(client)
+        headers = _auth_headers(token)
+
+        for nome, inicio, fim in [
+            ("Evento da tarde", "14:00", "15:00"),
+            ("Evento da manhã", "07:00", "08:00"),
+        ]:
+            res = client.post(
+                "/agendamentos/criar_agendamento",
+                json={
+                    "nome_evento": nome,
+                    "data_evento": "2027-02-20",
+                    "hora_inicio": inicio,
+                    "hora_fim": fim,
+                    "observacoes": "Não deve aparecer na disponibilidade",
+                },
+                headers=headers,
+            )
+            assert res.status_code == 201, res.text
 
         res = client.get(
-            "/api/v1/ci/00000000-0000-0000-0000-000000000000/pdf",
-            headers=_auth_headers(token),
-        )
-
-        assert res.status_code == 404
-
-    def test_baixar_pdf_sem_token(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
-        token = _obter_token(client)
-
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI PDF", "data": "2026-12-15", "descricao": "Descricao do PDF", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-
-        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
-        ci_id = list_res.json()[0]["id"]
-
-        res = client.get(f"/api/v1/ci/{ci_id}/pdf")
-
-        assert res.status_code == 401
-
-    # ── PUT /api/v1/ci/{id} ─────────────────────────────────────
-
-    def test_atualizar_ci_sucesso(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
-        token = _obter_token(client)
-
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Original", "data": "2026-12-15", "descricao": "Original", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token),
-        )
-
-        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
-        ci_id = list_res.json()[0]["id"]
-
-        res = client.put(
-            f"/api/v1/ci/{ci_id}",
-            json={"titulo": "CI Atualizada", "descricao": "Nova descricao"},
-            headers=_auth_headers(token),
+            "/agendamentos/disponibilidade?data=2027-02-20",
+            headers=headers,
         )
 
         assert res.status_code == 200
-        assert res.headers["content-type"] == "application/pdf"
+        assert res.json() == {
+            "data": "2027-02-20",
+            "timezone": "America/Campo_Grande",
+            "jornada": {"inicio": "07:00", "fim": "20:00"},
+            "bloqueios": [
+                {"inicio": "11:00", "fim": "13:00", "tipo": "almoco"}
+            ],
+            "ocupados": [
+                {"inicio": "07:00", "fim": "08:00"},
+                {"inicio": "14:00", "fim": "15:00"},
+            ],
+        }
 
-        list_res = client.get("/api/v1/ci", headers=_auth_headers(token))
-        data = list_res.json()
-        assert data[0]["titulo"] == "CI Atualizada"
-        assert data[0]["numero_ci"] == 1
-
-    def test_atualizar_ci_inexistente(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
+    def test_edicao_exclui_proprio_intervalo(self, client, db_session):
+        usuario = _criar_usuario(db_session)
         token = _obter_token(client)
+        headers = _auth_headers(token)
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento editável",
+                "data_evento": "2027-02-21",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=headers,
+        ).json()
 
-        res = client.put(
-            "/api/v1/ci/00000000-0000-0000-0000-000000000000",
-            json={"titulo": "Nao existe"},
-            headers=_auth_headers(token),
+        res = client.get(
+            "/agendamentos/disponibilidade",
+            params={"data": "2027-02-21", "agendamento_id": criado["id"]},
+            headers=headers,
         )
 
-        assert res.status_code == 404
+        assert res.status_code == 200
+        assert res.json()["ocupados"] == []
+        assert criado["usuario_id"] == str(usuario.id)
 
-    def test_atualizar_ci_sem_permissao(self, client, db_session):
-        _criar_usuario(db_session, role=UserRole.ADMIN)
-        token_admin = _obter_token(client)
+    def test_nao_permite_excluir_agendamento_de_outro_usuario(
+        self,
+        client,
+        db_session,
+    ):
+        _criar_usuario(db_session, login="dono")
+        dono_token = _obter_token(client, login="dono")
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento de outro usuário",
+                "data_evento": "2027-02-22",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=_auth_headers(dono_token),
+        ).json()
 
-        client.post(
-            "/api/v1/ci",
-            json={"tipo": "comunicacao_interna", "de": "Saude", "para": "Gabinete", "titulo": "CI Admin", "data": "2026-12-15", "descricao": "Desc", "nome_signatario": "Joao", "sobrenome_signatario": "Silva", "cargo_signatario": "Coordenador"},
-            headers=_auth_headers(token_admin),
-        )
-
-        list_res = client.get("/api/v1/ci", headers=_auth_headers(token_admin))
-        ci_id = list_res.json()[0]["id"]
-
-        _criar_usuario(db_session, login="sup_sem")
-        token_sem = _obter_token(client, login="sup_sem")
-
-        res = client.put(
-            f"/api/v1/ci/{ci_id}",
-            json={"titulo": "Tentativa de Edicao"},
-            headers=_auth_headers(token_sem),
+        _criar_usuario(db_session, login="outro")
+        outro_token = _obter_token(client, login="outro")
+        res = client.get(
+            "/agendamentos/disponibilidade",
+            params={"data": "2027-02-22", "agendamento_id": criado["id"]},
+            headers=_auth_headers(outro_token),
         )
 
         assert res.status_code == 403
+
+    def test_visualizador_nao_pode_usar_exclusao_de_edicao(
+        self,
+        client,
+        db_session,
+    ):
+        usuario = _criar_usuario(db_session)
+        token = _obter_token(client)
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento antes da troca de perfil",
+                "data_evento": "2027-02-23",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=_auth_headers(token),
+        ).json()
+        usuario.role = UserRole.VISUALIZADOR
+        db_session.commit()
+
+        res = client.get(
+            "/agendamentos/disponibilidade",
+            params={"data": "2027-02-23", "agendamento_id": criado["id"]},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 403
+
+
+class TestConflitosNaAtualizacao:
+    def test_rejeita_sobreposicao_e_preserva_registro_original(
+        self,
+        client,
+        db_session,
+    ):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+        headers = _auth_headers(token)
+
+        primeiro = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Primeiro evento",
+                "data_evento": "2027-03-01",
+                "hora_inicio": "07:00",
+                "hora_fim": "08:00",
+            },
+            headers=headers,
+        )
+        segundo = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Segundo evento",
+                "data_evento": "2027-03-01",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=headers,
+        )
+        assert primeiro.status_code == segundo.status_code == 201
+
+        res = client.put(
+            f"/agendamentos/{segundo.json()['id']}",
+            json={"hora_inicio": "07:30", "hora_fim": "08:30"},
+            headers=headers,
+        )
+
+        assert res.status_code == 409
+        assert res.json()["detail"]["code"] == "schedule_conflict"
+        listagem = client.get("/agendamentos", headers=headers).json()
+        persistido = next(item for item in listagem if item["id"] == segundo.json()["id"])
+        assert persistido["hora_inicio"] == "09:00:00"
+        assert persistido["hora_fim"] == "10:00:00"
+
+    def test_rejeita_edicao_que_atravessa_almoco(self, client, db_session):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+        headers = _auth_headers(token)
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento da manhã",
+                "data_evento": "2027-03-02",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=headers,
+        ).json()
+
+        res = client.put(
+            f"/agendamentos/{criado['id']}",
+            json={"hora_fim": "13:00"},
+            headers=headers,
+        )
+
+        assert res.status_code == 400
+        assert res.json()["detail"]["code"] == "invalid_schedule_window"
 
 
 class TestHealth:
+    def test_rota_comunicacao_interna_nao_existe(self, client):
+        assert "/api/v1/ci" not in client.app.openapi()["paths"]
+        assert client.get("/api/v1/ci").status_code == 404
+
     def test_health_check(self, client):
         res = client.get("/health")
         assert res.status_code == 200

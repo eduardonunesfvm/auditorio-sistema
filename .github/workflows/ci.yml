@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master, develop]
   push:
-    branches: [master, develop]
+    branches: [master, develop, "feature/**"]
 
 jobs:
   test:
@@ -21,11 +21,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar dependencias de sistema (WeasyPrint)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libgdk-pixbuf-xlib-2.0-0 libffi-dev shared-mime-info
-
       - name: Instalar dependencias Python
         run: |
           cd projeto-auditorio
@@ -36,9 +31,77 @@ jobs:
           cd projeto-auditorio
           python -m pytest app/tests.py -v
 
+  postgres:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: auditorio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d auditorio_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      SECRET_KEY: "ci-postgres-chave-secreta-com-32-bytes"
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/auditorio_test"
+      POSTGRES_TEST_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/auditorio_test"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias Python
+        run: |
+          cd projeto-auditorio
+          pip install -r requirements-lock.txt
+
+      - name: Validar migrations e concorrencia no PostgreSQL
+        run: |
+          cd projeto-auditorio
+          python -m pytest app/test_postgres_scheduling.py -v
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: auditorio-front/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias do frontend
+        working-directory: auditorio-front
+        run: npm ci
+
+      - name: Instalar Chromium
+        working-directory: auditorio-front
+        run: npx playwright install --with-deps chromium
+
+      - name: Rodar testes do wizard
+        working-directory: auditorio-front
+        run: npm run test:e2e
+
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, postgres, e2e]
 
     steps:
       - uses: actions/checkout@v4

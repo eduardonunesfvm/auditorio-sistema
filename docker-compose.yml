@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: ./projeto-auditorio
+      context: .
       dockerfile: Dockerfile
     container_name: auditorio-api
     restart: unless-stopped
