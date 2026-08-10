@@ -145,8 +145,8 @@ class TestAgendamentosCriar:
         payload = {
             "nome_evento": "Workshop",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
 
         res = client.post(
@@ -182,8 +182,11 @@ class TestAgendamentosCriar:
         assert r1.status_code == 201
 
         r2 = client.post("/agendamentos/criar_agendamento", json=p2, headers=_auth_headers(token))
-        assert r2.status_code == 400
-        assert "conflito" in r2.json()["detail"].lower()
+        assert r2.status_code == 409
+        assert r2.json()["detail"] == {
+            "code": "schedule_conflict",
+            "message": "O horário selecionado não está mais disponível.",
+        }
 
     def test_criar_agendamento_sem_conflito_mesmo_dia(self, client, db_session):
         _criar_usuario(db_session)
@@ -192,15 +195,15 @@ class TestAgendamentosCriar:
         p1 = {
             "nome_evento": "Evento A",
             "data_evento": "2026-12-15",
-            "hora_inicio": "08:00",
-            "hora_fim": "10:00",
+            "hora_inicio": "07:00",
+            "hora_fim": "09:00",
         }
 
         p2 = {
             "nome_evento": "Evento B",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
 
         r1 = client.post("/agendamentos/criar_agendamento", json=p1, headers=_auth_headers(token))
@@ -227,7 +230,7 @@ class TestAgendamentosCriar:
         )
 
         assert res.status_code == 400
-        assert "hora" in res.json()["detail"].lower()
+        assert res.json()["detail"]["code"] == "invalid_schedule_window"
 
     def test_criar_agendamento_sem_token(self, client):
         payload = {
@@ -397,8 +400,8 @@ class TestAgendamentosAtualizar:
             json={
                 "nome_evento": "Evento para teste",
                 "data_evento": "2026-12-15",
-                "hora_inicio": "10:00",
-                "hora_fim": "12:00",
+                "hora_inicio": "09:00",
+                "hora_fim": "11:00",
             },
             headers=_auth_headers(token),
         )
@@ -459,8 +462,8 @@ class TestAgendamentosDeletar:
             json={
                 "nome_evento": "Evento para deletar",
                 "data_evento": "2026-12-15",
-                "hora_inicio": "10:00",
-                "hora_fim": "12:00",
+                "hora_inicio": "09:00",
+                "hora_fim": "11:00",
             },
             headers=_auth_headers(token),
         )
@@ -507,8 +510,8 @@ class TestRoleBasedAccess:
         payload = {
             "nome_evento": "Evento Bloqueado",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
         res = client.post(
             "/agendamentos/criar_agendamento",
@@ -578,8 +581,8 @@ class TestRoleBasedAccess:
         payload = {
             "nome_evento": "Evento Permitido",
             "data_evento": "2026-12-15",
-            "hora_inicio": "10:00",
-            "hora_fim": "12:00",
+            "hora_inicio": "09:00",
+            "hora_fim": "11:00",
         }
         res = client.post(
             "/agendamentos/criar_agendamento",
@@ -625,6 +628,269 @@ class TestRoleBasedAccess:
         assert res.status_code == 201
         data = res.json()
         assert data["role"] == "superintendente"
+
+
+class TestPoliticaDeHorarios:
+    @pytest.mark.parametrize(
+        ("inicio", "fim"),
+        [
+            ("07:00", "11:00"),
+            ("13:00", "20:00"),
+            ("18:30", "19:30"),
+            ("07:00:30", "08:00:30"),
+        ],
+    )
+    def test_aceita_limites_e_preserva_precisao_existente(
+        self,
+        client,
+        db_session,
+        inicio,
+        fim,
+    ):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+
+        res = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento dentro do expediente",
+                "data_evento": "2027-01-10",
+                "hora_inicio": inicio,
+                "hora_fim": fim,
+            },
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 201, res.text
+
+    @pytest.mark.parametrize(
+        ("inicio", "fim"),
+        [
+            ("06:59", "08:00"),
+            ("10:00", "13:00"),
+            ("11:00", "13:00"),
+            ("13:00", "20:01"),
+            ("14:00", "14:00"),
+            ("15:00", "14:00"),
+        ],
+    )
+    def test_rejeita_intervalos_fora_da_politica(
+        self,
+        client,
+        db_session,
+        inicio,
+        fim,
+    ):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+
+        res = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento inválido",
+                "data_evento": "2027-01-11",
+                "hora_inicio": inicio,
+                "hora_fim": fim,
+            },
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 400
+        assert res.json()["detail"]["code"] == "invalid_schedule_window"
+
+
+class TestDisponibilidade:
+    def test_retorna_contrato_minimo_e_ocupados_ordenados(self, client, db_session):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+        headers = _auth_headers(token)
+
+        for nome, inicio, fim in [
+            ("Evento da tarde", "14:00", "15:00"),
+            ("Evento da manhã", "07:00", "08:00"),
+        ]:
+            res = client.post(
+                "/agendamentos/criar_agendamento",
+                json={
+                    "nome_evento": nome,
+                    "data_evento": "2027-02-20",
+                    "hora_inicio": inicio,
+                    "hora_fim": fim,
+                    "observacoes": "Não deve aparecer na disponibilidade",
+                },
+                headers=headers,
+            )
+            assert res.status_code == 201, res.text
+
+        res = client.get(
+            "/agendamentos/disponibilidade?data=2027-02-20",
+            headers=headers,
+        )
+
+        assert res.status_code == 200
+        assert res.json() == {
+            "data": "2027-02-20",
+            "timezone": "America/Campo_Grande",
+            "jornada": {"inicio": "07:00", "fim": "20:00"},
+            "bloqueios": [
+                {"inicio": "11:00", "fim": "13:00", "tipo": "almoco"}
+            ],
+            "ocupados": [
+                {"inicio": "07:00", "fim": "08:00"},
+                {"inicio": "14:00", "fim": "15:00"},
+            ],
+        }
+
+    def test_edicao_exclui_proprio_intervalo(self, client, db_session):
+        usuario = _criar_usuario(db_session)
+        token = _obter_token(client)
+        headers = _auth_headers(token)
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento editável",
+                "data_evento": "2027-02-21",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=headers,
+        ).json()
+
+        res = client.get(
+            "/agendamentos/disponibilidade",
+            params={"data": "2027-02-21", "agendamento_id": criado["id"]},
+            headers=headers,
+        )
+
+        assert res.status_code == 200
+        assert res.json()["ocupados"] == []
+        assert criado["usuario_id"] == str(usuario.id)
+
+    def test_nao_permite_excluir_agendamento_de_outro_usuario(
+        self,
+        client,
+        db_session,
+    ):
+        _criar_usuario(db_session, login="dono")
+        dono_token = _obter_token(client, login="dono")
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento de outro usuário",
+                "data_evento": "2027-02-22",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=_auth_headers(dono_token),
+        ).json()
+
+        _criar_usuario(db_session, login="outro")
+        outro_token = _obter_token(client, login="outro")
+        res = client.get(
+            "/agendamentos/disponibilidade",
+            params={"data": "2027-02-22", "agendamento_id": criado["id"]},
+            headers=_auth_headers(outro_token),
+        )
+
+        assert res.status_code == 403
+
+    def test_visualizador_nao_pode_usar_exclusao_de_edicao(
+        self,
+        client,
+        db_session,
+    ):
+        usuario = _criar_usuario(db_session)
+        token = _obter_token(client)
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento antes da troca de perfil",
+                "data_evento": "2027-02-23",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=_auth_headers(token),
+        ).json()
+        usuario.role = UserRole.VISUALIZADOR
+        db_session.commit()
+
+        res = client.get(
+            "/agendamentos/disponibilidade",
+            params={"data": "2027-02-23", "agendamento_id": criado["id"]},
+            headers=_auth_headers(token),
+        )
+
+        assert res.status_code == 403
+
+
+class TestConflitosNaAtualizacao:
+    def test_rejeita_sobreposicao_e_preserva_registro_original(
+        self,
+        client,
+        db_session,
+    ):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+        headers = _auth_headers(token)
+
+        primeiro = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Primeiro evento",
+                "data_evento": "2027-03-01",
+                "hora_inicio": "07:00",
+                "hora_fim": "08:00",
+            },
+            headers=headers,
+        )
+        segundo = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Segundo evento",
+                "data_evento": "2027-03-01",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=headers,
+        )
+        assert primeiro.status_code == segundo.status_code == 201
+
+        res = client.put(
+            f"/agendamentos/{segundo.json()['id']}",
+            json={"hora_inicio": "07:30", "hora_fim": "08:30"},
+            headers=headers,
+        )
+
+        assert res.status_code == 409
+        assert res.json()["detail"]["code"] == "schedule_conflict"
+        listagem = client.get("/agendamentos", headers=headers).json()
+        persistido = next(item for item in listagem if item["id"] == segundo.json()["id"])
+        assert persistido["hora_inicio"] == "09:00:00"
+        assert persistido["hora_fim"] == "10:00:00"
+
+    def test_rejeita_edicao_que_atravessa_almoco(self, client, db_session):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+        headers = _auth_headers(token)
+        criado = client.post(
+            "/agendamentos/criar_agendamento",
+            json={
+                "nome_evento": "Evento da manhã",
+                "data_evento": "2027-03-02",
+                "hora_inicio": "09:00",
+                "hora_fim": "10:00",
+            },
+            headers=headers,
+        ).json()
+
+        res = client.put(
+            f"/agendamentos/{criado['id']}",
+            json={"hora_fim": "13:00"},
+            headers=headers,
+        )
+
+        assert res.status_code == 400
+        assert res.json()["detail"]["code"] == "invalid_schedule_window"
 
 
 class TestHealth:

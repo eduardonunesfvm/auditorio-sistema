@@ -30,6 +30,11 @@ build/
 .coverage
 htmlcov/
 
+# Testes do frontend
+node_modules/
+playwright-report/
+test-results/
+
 # Sistema operacional
 .DS_Store
 Thumbs.db
