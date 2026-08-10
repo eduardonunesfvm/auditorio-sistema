@@ -6,6 +6,9 @@ var loginForm = document.getElementById("login-form");
 var loginFeedback = document.getElementById("login-feedback");
 var loginBtn = document.getElementById("login-btn");
 var logoutBtn = document.getElementById("logout-btn");
+var listView = document.getElementById("view-agendamentos");
+var formView = document.getElementById("view-novo-agendamento");
+var listTitle = document.getElementById("list-title");
 var agendamentoForm = document.getElementById("agendamento-form");
 var agendamentoFeedback = document.getElementById("agendamento-feedback");
 var agendamentoBtn = document.getElementById("agendamento-btn");
@@ -14,24 +17,36 @@ var formTitle = document.getElementById("form-title");
 var editingId = document.getElementById("editing-id");
 var proximoEventoContent = document.getElementById("proximo-evento-content");
 var tabelaBody = document.getElementById("tabela-agendamentos-body");
+var tableView = document.getElementById("schedule-table-view");
+var cardsView = document.getElementById("schedule-cards-view");
+var listState = document.getElementById("list-state");
+var scheduleSection = document.querySelector(".schedule-section");
 var buscaInput = document.getElementById("busca-agendamentos");
+var novoAgendamentoBtn = document.getElementById("novo-agendamento-btn");
+var voltarAgendamentosBtn = document.getElementById("voltar-agendamentos-btn");
+var operationStatus = document.getElementById("operation-status");
 var modalOverlay = document.getElementById("modal-overlay");
+var modalTitle = document.getElementById("modal-title");
 var modalMessage = document.getElementById("modal-message");
 var modalActions = document.getElementById("modal-actions");
 
 var agendamentosCache = [];
+var navigationOrigin = null;
+var operationStatusTimer = null;
+var lastModalFocus = null;
 
-function showLogin() {
-  loginScreen.classList.add("active");
-  dashboardScreen.classList.remove("active");
-}
-
-function showDashboard() {
-  loginScreen.classList.remove("active");
-  dashboardScreen.classList.add("active");
-  applyRoleRestrictions();
-  refreshAll();
-}
+var ICONS = {
+  plus: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  edit: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></svg>',
+  trash: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v5M14 11v5"/></svg>',
+  calendar: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2z"/></svg>',
+  clock: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  users: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>',
+  retry: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+  empty: '<svg class="state-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2zM8 15h8"/></svg>',
+  search: '<svg class="state-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8.5 8.5l5 5M13.5 8.5l-5 5"/></svg>',
+  error: '<svg class="state-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 17h.01"/></svg>'
+};
 
 function getToken() {
   return localStorage.getItem("access_token");
@@ -41,7 +56,7 @@ function setToken(token) {
   localStorage.setItem("access_token", token);
 }
 
-function clearToken() {
+function clearSession() {
   localStorage.removeItem("access_token");
   localStorage.removeItem("role");
 }
@@ -54,338 +69,449 @@ function setRole(role) {
   localStorage.setItem("role", role);
 }
 
-function getPermissions() {
-  var token = getToken();
-  if (!token) return [];
+function decodeTokenPayload(token) {
   try {
-    var parts = token.split(".");
-    if (parts.length !== 3) return [];
-    var payload = JSON.parse(atob(parts[1]));
-    return payload.permissions || [];
-  } catch (e) {
-    return [];
+    var payload = token.split(".")[1];
+    if (!payload) return null;
+    payload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    while (payload.length % 4) payload += "=";
+    return JSON.parse(decodeURIComponent(atob(payload).split("").map(function (char) {
+      return "%" + ("00" + char.charCodeAt(0).toString(16)).slice(-2);
+    }).join("")));
+  } catch (err) {
+    return null;
   }
 }
 
-function temPermissaoCI() {
-  return getRole() === "admin" || getPermissions().indexOf("ci") !== -1;
+function getCurrentUserId() {
+  var payload = decodeTokenPayload(getToken() || "");
+  return payload && payload.sub ? String(payload.sub) : "";
 }
 
 function isVisualizador() {
   return getRole() === "visualizador";
 }
 
-function setButtonLoading(btn, loading) {
-  if (loading) {
-    btn.disabled = true;
-    btn.dataset.originalText = btn.textContent;
-    btn.textContent = "Carregando...";
-  } else {
-    btn.disabled = false;
-    btn.textContent = btn.dataset.originalText || btn.textContent;
-  }
+function canCreate() {
+  return Boolean(getToken()) && !isVisualizador();
 }
 
-function showFeedback(el, message, type) {
-  el.textContent = message;
-  el.className = "feedback visible " + type;
-}
-
-function hideFeedback(el) {
-  el.textContent = "";
-  el.className = "feedback";
-}
-
-function clearForm(form) {
-  form.reset();
-  editingId.value = "";
-  agendamentoBtn.textContent = "Confirmar Agendamento";
-  cancelEditBtn.style.display = "none";
-  formTitle.textContent = "Novo Agendamento";
-}
-
-function resetEditState() {
-  clearForm(agendamentoForm);
-  hideFeedback(agendamentoFeedback);
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return "-";
-  var parts = dateStr.split("-");
-  return parts[2] + "/" + parts[1] + "/" + parts[0];
-}
-
-function formatTime(timeStr) {
-  if (!timeStr) return "-";
-  return timeStr.substring(0, 5);
+function canManage(agendamento) {
+  return canCreate() && getCurrentUserId() !== "" && String(agendamento.usuario_id) === getCurrentUserId();
 }
 
 function apiHeaders() {
   var headers = { "Content-Type": "application/json" };
-  var token = getToken();
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
-  }
+  if (getToken()) headers.Authorization = "Bearer " + getToken();
   return headers;
 }
 
-function handleAuthError(status) {
-  if (status === 401) {
-    clearToken();
-    showLogin();
-  }
-}
-
-function escapeHtml(str) {
+function escapeHtml(value) {
   var div = document.createElement("div");
-  div.appendChild(document.createTextNode(str));
+  div.textContent = value == null ? "" : String(value);
   return div.innerHTML;
 }
 
-function buildBody(nomeEvento, dataEvento, horaInicio, horaFim, qtdParticipantes, observacoes) {
-  var body = {
-    nome_evento: nomeEvento,
-    data_evento: dataEvento,
-    hora_inicio: horaInicio,
-    hora_fim: horaFim,
-  };
+function formatDate(dateStr) {
+  if (!dateStr) return "-";
+  var parts = String(dateStr).substring(0, 10).split("-");
+  return parts.length === 3 ? parts[2] + "/" + parts[1] + "/" + parts[0] : String(dateStr);
+}
 
-  var qtd = parseInt(qtdParticipantes, 10);
-  if (!isNaN(qtd) && qtd > 0) {
-    body.quantidade_participantes = qtd;
+function formatTime(timeStr) {
+  return timeStr ? String(timeStr).substring(0, 5) : "-";
+}
+
+function participantLabel(value) {
+  if (value == null) return "Não informado";
+  return value + (Number(value) === 1 ? " participante" : " participantes");
+}
+
+function setButtonLoading(button, loading, loadingText) {
+  if (loading) {
+    button.disabled = true;
+    button.dataset.originalHtml = button.innerHTML;
+    button.innerHTML = '<span class="spinner" aria-hidden="true"></span>' + (loadingText || "Carregando...");
   } else {
-    body.quantidade_participantes = null;
+    button.disabled = false;
+    if (button.dataset.originalHtml) button.innerHTML = button.dataset.originalHtml;
   }
+}
 
-  if (observacoes) {
-    body.observacoes = observacoes;
-  } else {
-    body.observacoes = null;
+function showFeedback(element, message, type) {
+  element.textContent = message;
+  element.className = "feedback visible " + type;
+}
+
+function hideFeedback(element) {
+  element.textContent = "";
+  element.className = "feedback";
+}
+
+function showOperationStatus(message, type, shouldFocus) {
+  clearTimeout(operationStatusTimer);
+  operationStatus.textContent = message;
+  operationStatus.className = "operation-status " + type;
+  operationStatus.hidden = false;
+  if (shouldFocus) {
+    operationStatus.tabIndex = -1;
+    operationStatus.focus();
   }
-
-  return body;
+  operationStatusTimer = setTimeout(function () {
+    operationStatus.hidden = true;
+    operationStatus.removeAttribute("tabindex");
+  }, 6000);
 }
 
-function showModal(message, buttons) {
-  modalMessage.textContent = message;
-  modalActions.innerHTML = "";
+function hideOperationStatus() {
+  clearTimeout(operationStatusTimer);
+  operationStatus.hidden = true;
+}
 
-  for (var i = 0; i < buttons.length; i++) {
-    var b = buttons[i];
-    var btn = document.createElement("button");
-    btn.className = "btn " + (b.cls || "btn-outline");
-    btn.textContent = b.text;
-    btn.addEventListener("click", function (cb) {
-      return function () {
-        hideModal();
-        if (cb) cb();
-      };
-    }(b.callback));
-    modalActions.appendChild(btn);
+function showLogin() {
+  loginScreen.classList.add("active");
+  dashboardScreen.classList.remove("active");
+  setTimeout(function () { document.getElementById("login").focus(); }, 0);
+}
+
+function showDashboard() {
+  loginScreen.classList.remove("active");
+  dashboardScreen.classList.add("active");
+  applyRoleRestrictions();
+  showView("view-agendamentos");
+  refreshAll();
+}
+
+function showView(viewId) {
+  listView.classList.toggle("hidden", viewId !== "view-agendamentos");
+  formView.classList.toggle("hidden", viewId !== "view-novo-agendamento");
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function applyRoleRestrictions() {
+  novoAgendamentoBtn.hidden = !canCreate();
+  scheduleSection.classList.toggle("role-readonly", isVisualizador());
+  if (isVisualizador() && !formView.classList.contains("hidden")) showView("view-agendamentos");
+}
+
+function resetFormState() {
+  agendamentoForm.reset();
+  editingId.value = "";
+  formTitle.textContent = "Novo Agendamento";
+  agendamentoBtn.textContent = "Confirmar Agendamento";
+  hideFeedback(agendamentoFeedback);
+}
+
+function openFormForCreate() {
+  if (!canCreate()) return;
+  navigationOrigin = { type: "new" };
+  resetFormState();
+  showView("view-novo-agendamento");
+  document.getElementById("nome-evento").focus();
+}
+
+function restoreListFocus() {
+  var target = null;
+  if (navigationOrigin && navigationOrigin.type === "edit") {
+    target = document.querySelector('[data-action="edit"][data-id="' + CSS.escape(navigationOrigin.id) + '"]');
+  } else if (navigationOrigin && navigationOrigin.type === "new" && !novoAgendamentoBtn.hidden) {
+    target = novoAgendamentoBtn;
   }
-
-  modalOverlay.classList.add("active");
+  (target || listTitle).focus();
+  navigationOrigin = null;
 }
 
-function hideModal() {
-  modalOverlay.classList.remove("active");
+function returnToList(restoreFocus) {
+  resetFormState();
+  showView("view-agendamentos");
+  if (restoreFocus) setTimeout(restoreListFocus, 0);
 }
 
-function showAlertModal(message) {
-  showModal(message, [{ text: "OK", cls: "btn-primary", callback: null }]);
+function handleAuthError(statusCode) {
+  if (statusCode !== 401) return false;
+  clearSession();
+  agendamentosCache = [];
+  showLogin();
+  return true;
 }
 
-function showConfirmModal(message, onConfirm) {
-  showModal(message, [
-    { text: "Cancelar", cls: "btn-outline", callback: null },
-    { text: "Confirmar", cls: "btn-danger", callback: onConfirm },
-  ]);
+async function responseError(response, fallback) {
+  var data = await response.json().catch(function () { return null; });
+  return data?.detail || data?.message || fallback;
 }
 
-modalOverlay.addEventListener("click", function (e) {
-  if (e.target === modalOverlay) {
-    hideModal();
-  }
-});
+function renderNextEventLoading() {
+  proximoEventoContent.innerHTML = '<div class="next-event-loading" aria-label="Carregando próximo evento"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-line"></span></div>';
+}
 
-function renderProximoEvento(evento) {
-  if (!evento) {
-    proximoEventoContent.innerHTML = '<p class="empty-state">Nenhum evento próximo agendado.</p>';
+function renderProximoEvento(evento, hasError) {
+  if (hasError) {
+    proximoEventoContent.innerHTML = '<p class="next-event-neutral">Não foi possível consultar o próximo evento.</p>';
     return;
   }
-
+  if (!evento) {
+    proximoEventoContent.innerHTML = '<p class="next-event-neutral">Nenhum evento futuro agendado.</p>';
+    return;
+  }
   proximoEventoContent.innerHTML =
-    '<div class="proximo-evento-details">' +
-      '<div class="detail-item">' +
-        '<span class="detail-label">Evento</span>' +
-        '<span class="detail-value highlight">' + escapeHtml(evento.nome_evento) + '</span>' +
-      '</div>' +
-      '<div class="detail-item">' +
-        '<span class="detail-label">Data</span>' +
-        '<span class="detail-value">' + formatDate(evento.data_evento) + '</span>' +
-      '</div>' +
-      '<div class="detail-item">' +
-        '<span class="detail-label">Horário</span>' +
-        '<span class="detail-value">' + formatTime(evento.hora_inicio) + ' - ' + formatTime(evento.hora_fim) + '</span>' +
-      '</div>' +
-      '<div class="detail-item">' +
-        '<span class="detail-label">Participantes</span>' +
-        '<span class="detail-value">' + (evento.quantidade_participantes != null ? evento.quantidade_participantes : "-") + '</span>' +
-      '</div>' +
+    '<div class="next-event-name">' + escapeHtml(evento.nome_evento) + '</div>' +
+    '<div class="next-event-meta">' +
+      '<span>' + ICONS.calendar + escapeHtml(formatDate(evento.data_evento)) + '</span>' +
+      '<span>' + ICONS.clock + escapeHtml(formatTime(evento.hora_inicio) + " - " + formatTime(evento.hora_fim)) + '</span>' +
+      '<span>' + ICONS.users + escapeHtml(participantLabel(evento.quantidade_participantes)) + '</span>' +
     '</div>';
 }
 
-function renderTabela(agendamentos) {
-  if (!agendamentos || agendamentos.length === 0) {
-    tabelaBody.innerHTML = '<tr class="empty-row"><td colspan="6" class="empty-state">Nenhum agendamento encontrado.</td></tr>';
-    return;
-  }
+function hideListPresentations() {
+  tableView.hidden = true;
+  cardsView.hidden = true;
+}
 
-  var isVis = isVisualizador();
+function renderLoadingState() {
+  hideListPresentations();
+  listState.hidden = false;
+  listState.className = "list-state loading-state";
+  listState.setAttribute("aria-busy", "true");
+  listState.innerHTML =
+    '<span class="sr-only">Carregando agendamentos.</span>' +
+    '<div class="skeleton-table" aria-hidden="true">' +
+      '<span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span>' +
+    '</div>' +
+    '<div class="skeleton-cards" aria-hidden="true">' +
+      '<span class="skeleton skeleton-card"></span><span class="skeleton skeleton-card"></span>' +
+    '</div>';
+}
+
+function renderMessageState(kind, title, description, actionHtml) {
+  hideListPresentations();
+  listState.hidden = false;
+  listState.className = "list-state message-state " + kind;
+  listState.setAttribute("aria-busy", "false");
+  listState.innerHTML = ICONS[kind] + '<h3>' + escapeHtml(title) + '</h3><p>' + escapeHtml(description) + '</p>' + (actionHtml || "");
+}
+
+function actionButtons(agendamento) {
+  if (!canManage(agendamento)) return "";
+  var id = escapeHtml(agendamento.id);
+  return '<div class="row-actions">' +
+    '<button type="button" class="btn btn-action btn-edit" data-action="edit" data-id="' + id + '" aria-label="Editar ' + escapeHtml(agendamento.nome_evento) + '">' + ICONS.edit + 'Editar</button>' +
+    '<button type="button" class="btn btn-action btn-delete" data-action="delete" data-id="' + id + '" aria-label="Excluir ' + escapeHtml(agendamento.nome_evento) + '">' + ICONS.trash + 'Excluir</button>' +
+  '</div>';
+}
+
+function renderTable(agendamentos) {
   var html = "";
   for (var i = 0; i < agendamentos.length; i++) {
-    var ev = agendamentos[i];
-    var actions = "";
-    if (!isVis) {
-      actions =
-        '<td class="td-actions">' +
-          '<button class="btn btn-sm btn-edit" data-id="' + ev.id + '" title="Editar">Editar</button>' +
-          '<button class="btn btn-sm btn-danger" data-id="' + ev.id + '" title="Excluir">Excluir</button>' +
-        '</td>';
-    } else {
-      actions = '<td class="td-actions"></td>';
-    }
-    html +=
-      '<tr>' +
-        '<td>' + escapeHtml(ev.nome_evento) + '</td>' +
-        '<td>' + formatDate(ev.data_evento) + '</td>' +
-        '<td>' + formatTime(ev.hora_inicio) + '</td>' +
-        '<td>' + formatTime(ev.hora_fim) + '</td>' +
-        '<td>' + (ev.quantidade_participantes != null ? ev.quantidade_participantes : "-") + '</td>' +
-        actions +
-      '</tr>';
+    var item = agendamentos[i];
+    html += '<tr>' +
+      '<td><span class="event-name">' + escapeHtml(item.nome_evento) + '</span></td>' +
+      '<td class="cell-nowrap">' + escapeHtml(formatDate(item.data_evento)) + '</td>' +
+      '<td class="cell-nowrap">' + escapeHtml(formatTime(item.hora_inicio) + " - " + formatTime(item.hora_fim)) + '</td>' +
+      '<td class="cell-center">' + escapeHtml(item.quantidade_participantes == null ? "-" : item.quantidade_participantes) + '</td>' +
+      '<td class="cell-actions">' + actionButtons(item) + '</td>' +
+    '</tr>';
   }
   tabelaBody.innerHTML = html;
 }
 
-function applyRoleRestrictions() {
-  var isVis = isVisualizador();
-  var formCard = document.querySelector(".card-form");
-  var dashboardGrid = document.querySelector(".dashboard-grid");
-  var dashboardLeft = document.querySelector(".dashboard-col-left");
-
-  if (formCard) {
-    formCard.style.display = isVis ? "none" : "";
+function renderCards(agendamentos) {
+  var html = "";
+  for (var i = 0; i < agendamentos.length; i++) {
+    var item = agendamentos[i];
+    var actions = actionButtons(item);
+    html += '<article class="schedule-item-card">' +
+      '<h3>' + escapeHtml(item.nome_evento) + '</h3>' +
+      '<div class="schedule-card-meta">' +
+        '<span>' + ICONS.calendar + escapeHtml(formatDate(item.data_evento)) + '</span>' +
+        '<span>' + ICONS.clock + escapeHtml(formatTime(item.hora_inicio) + " - " + formatTime(item.hora_fim)) + '</span>' +
+        '<span>' + ICONS.users + escapeHtml(participantLabel(item.quantidade_participantes)) + '</span>' +
+      '</div>' +
+      (actions ? '<div class="schedule-card-actions">' + actions + '</div>' : "") +
+    '</article>';
   }
-  if (dashboardLeft) {
-    dashboardLeft.style.display = isVis ? "none" : "";
-  }
-  if (dashboardGrid) {
-    if (isVis) {
-      dashboardGrid.classList.add("visualizador-layout");
-    } else {
-      dashboardGrid.classList.remove("visualizador-layout");
-    }
-  }
+  cardsView.innerHTML = html;
 }
 
-function filtrarAgendamentos(query) {
-  if (!query) return agendamentosCache;
-
-  var q = query.toLowerCase().trim();
-  return agendamentosCache.filter(function (ev) {
-    return ev.nome_evento.toLowerCase().indexOf(q) !== -1
-      || (ev.data_evento && ev.data_evento.indexOf(q) !== -1);
+function filterAgendamentos(query) {
+  var normalized = String(query || "").trim().toLocaleLowerCase("pt-BR");
+  if (!normalized) return agendamentosCache.slice();
+  return agendamentosCache.filter(function (item) {
+    return String(item.nome_evento || "").toLocaleLowerCase("pt-BR").indexOf(normalized) !== -1 ||
+      formatDate(item.data_evento).indexOf(normalized) !== -1;
   });
 }
 
+function renderAgendamentos() {
+  var query = buscaInput.value.trim();
+  if (agendamentosCache.length === 0) {
+    var createAction = canCreate()
+      ? '<button type="button" class="btn btn-primary" data-action="create">' + ICONS.plus + 'Agendar Horário</button>'
+      : "";
+    renderMessageState("empty", "Nenhum agendamento cadastrado", "Os novos agendamentos aparecerão aqui.", createAction);
+    return;
+  }
+  var filtered = filterAgendamentos(query);
+  if (filtered.length === 0) {
+    renderMessageState("search", "Nenhum agendamento encontrado", "Tente buscar por outro nome ou data.", "");
+    return;
+  }
+  listState.hidden = true;
+  listState.setAttribute("aria-busy", "false");
+  tableView.hidden = false;
+  cardsView.hidden = false;
+  renderTable(filtered);
+  renderCards(filtered);
+}
+
 async function loadProximoEvento() {
+  renderNextEventLoading();
   try {
-    var res = await fetch(API_URL + "/agendamentos/proximo", {
-      method: "GET",
-      headers: apiHeaders(),
-    });
-
-    if (!res.ok) {
-      handleAuthError(res.status);
-      renderProximoEvento(null);
-      return;
+    var response = await fetch(API_URL + "/agendamentos/proximo", { headers: apiHeaders() });
+    if (!response.ok) {
+      if (handleAuthError(response.status)) return;
+      throw new Error("Falha ao consultar próximo evento");
     }
-
-    var data = await res.json();
-    renderProximoEvento(data || null);
+    renderProximoEvento(await response.json(), false);
   } catch (err) {
-    renderProximoEvento(null);
+    renderProximoEvento(null, true);
   }
 }
 
 async function loadAgendamentos() {
+  renderLoadingState();
   try {
-    var res = await fetch(API_URL + "/agendamentos", {
-      method: "GET",
-      headers: apiHeaders(),
-    });
-
-    if (!res.ok) {
-      handleAuthError(res.status);
-      agendamentosCache = [];
-    } else {
-      var data = await res.json();
-      agendamentosCache = Array.isArray(data) ? data : [];
+    var response = await fetch(API_URL + "/agendamentos", { headers: apiHeaders() });
+    if (!response.ok) {
+      if (handleAuthError(response.status)) return;
+      throw new Error(await responseError(response, "Não foi possível carregar os agendamentos."));
     }
+    var data = await response.json();
+    agendamentosCache = Array.isArray(data) ? data : [];
+    renderAgendamentos();
   } catch (err) {
-    agendamentosCache = [];
+    renderMessageState(
+      "error",
+      "Não foi possível carregar os agendamentos",
+      "Verifique sua conexão e tente novamente.",
+      '<button type="button" class="btn btn-outline" data-action="retry">' + ICONS.retry + 'Tentar novamente</button>'
+    );
   }
-
-  var query = buscaInput.value;
-  var filtrados = filtrarAgendamentos(query);
-  renderTabela(filtrados);
 }
 
 function refreshAll() {
-  loadProximoEvento();
-  loadAgendamentos();
+  return Promise.all([loadProximoEvento(), loadAgendamentos()]);
 }
 
-loginForm.addEventListener("submit", async function (e) {
-  e.preventDefault();
+function buildPayload() {
+  var quantity = parseInt(document.getElementById("qtd-participantes").value, 10);
+  return {
+    nome_evento: document.getElementById("nome-evento").value.trim(),
+    data_evento: document.getElementById("data-evento").value,
+    hora_inicio: document.getElementById("hora-inicio").value,
+    hora_fim: document.getElementById("hora-fim").value,
+    quantidade_participantes: isNaN(quantity) ? null : quantity,
+    observacoes: document.getElementById("observacoes").value.trim() || null
+  };
+}
+
+function findAgendamento(id) {
+  return agendamentosCache.find(function (item) { return String(item.id) === String(id); }) || null;
+}
+
+function openEditForm(id) {
+  var item = findAgendamento(id);
+  if (!item || !canManage(item)) return;
+  navigationOrigin = { type: "edit", id: String(id) };
+  editingId.value = item.id;
+  document.getElementById("nome-evento").value = item.nome_evento || "";
+  document.getElementById("data-evento").value = item.data_evento || "";
+  document.getElementById("hora-inicio").value = item.hora_inicio ? item.hora_inicio.substring(0, 5) : "";
+  document.getElementById("hora-fim").value = item.hora_fim ? item.hora_fim.substring(0, 5) : "";
+  document.getElementById("qtd-participantes").value = item.quantidade_participantes == null ? "" : item.quantidade_participantes;
+  document.getElementById("observacoes").value = item.observacoes || "";
+  formTitle.textContent = "Editar Agendamento";
+  agendamentoBtn.textContent = "Salvar Alterações";
+  hideFeedback(agendamentoFeedback);
+  showView("view-novo-agendamento");
+  document.getElementById("nome-evento").focus();
+}
+
+function showModal(title, message, buttons) {
+  lastModalFocus = document.activeElement;
+  modalTitle.textContent = title;
+  modalMessage.textContent = message;
+  modalActions.innerHTML = "";
+  buttons.forEach(function (item) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn " + (item.className || "btn-outline");
+    button.textContent = item.text;
+    button.addEventListener("click", function () {
+      hideModal();
+      if (item.callback) item.callback();
+    });
+    modalActions.appendChild(button);
+  });
+  modalOverlay.classList.add("active");
+  modalOverlay.setAttribute("aria-hidden", "false");
+  setTimeout(function () { modalActions.querySelector("button").focus(); }, 0);
+}
+
+function hideModal() {
+  modalOverlay.classList.remove("active");
+  modalOverlay.setAttribute("aria-hidden", "true");
+  if (lastModalFocus && document.contains(lastModalFocus)) lastModalFocus.focus();
+}
+
+function confirmDelete(id) {
+  var item = findAgendamento(id);
+  if (!item || !canManage(item)) return;
+  showModal(
+    "Excluir agendamento",
+    'Tem certeza que deseja excluir "' + item.nome_evento + '"? Esta ação não pode ser desfeita.',
+    [
+      { text: "Cancelar", className: "btn-outline" },
+      { text: "Excluir", className: "btn-danger-solid", callback: function () { deleteAgendamento(id); } }
+    ]
+  );
+}
+
+async function deleteAgendamento(id) {
+  try {
+    var response = await fetch(API_URL + "/agendamentos/" + encodeURIComponent(id), { method: "DELETE", headers: apiHeaders() });
+    if (!response.ok) {
+      if (handleAuthError(response.status)) return;
+      throw new Error(await responseError(response, "Não foi possível excluir o agendamento."));
+    }
+    await refreshAll();
+    showOperationStatus("Agendamento excluído com sucesso.", "success", true);
+  } catch (err) {
+    showOperationStatus(err.message, "error", true);
+  }
+}
+
+loginForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
   hideFeedback(loginFeedback);
-
   var login = document.getElementById("login").value.trim();
-  var senha = document.getElementById("senha").value.trim();
-
+  var senha = document.getElementById("senha").value;
   if (!login || !senha) {
-    showFeedback(loginFeedback, "Preencha todos os campos.", "error");
+    showFeedback(loginFeedback, "Preencha login e senha.", "error");
     return;
   }
-
-  setButtonLoading(loginBtn, true);
-
+  setButtonLoading(loginBtn, true, "Entrando...");
   try {
-    var res = await fetch(API_URL + "/auth/login", {
+    var response = await fetch(API_URL + "/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login: login, senha: senha }),
+      body: JSON.stringify({ login: login, senha: senha })
     });
-
-    if (!res.ok) {
-      var data = await res.json().catch(function () { return null; });
-      var msg = data?.detail || data?.message || "Credenciais invalidas.";
-      throw new Error(msg);
-    }
-
-    var data = await res.json();
-    var token = data.access_token;
-
-    if (!token) {
-      throw new Error("Token não recebido do servidor.");
-    }
-
-    setToken(token);
-    if (data.role) {
-      setRole(data.role);
-    }
-    clearForm(loginForm);
+    if (!response.ok) throw new Error(await responseError(response, "Login ou senha inválidos."));
+    var data = await response.json();
+    if (!data.access_token) throw new Error("Token não recebido do servidor.");
+    setToken(data.access_token);
+    setRole(data.role || "superintendente");
+    loginForm.reset();
     showDashboard();
   } catch (err) {
     showFeedback(loginFeedback, err.message, "error");
@@ -395,82 +521,57 @@ loginForm.addEventListener("submit", async function (e) {
 });
 
 logoutBtn.addEventListener("click", function () {
-  clearToken();
-  resetEditState();
+  clearSession();
   agendamentosCache = [];
-  renderProximoEvento(null);
-  renderTabela([]);
+  resetFormState();
+  hideOperationStatus();
   showLogin();
 });
 
-cancelEditBtn.addEventListener("click", function () {
-  resetEditState();
+novoAgendamentoBtn.addEventListener("click", openFormForCreate);
+
+voltarAgendamentosBtn.addEventListener("click", function () {
+  returnToList(true);
 });
 
-agendamentoForm.addEventListener("submit", async function (e) {
-  e.preventDefault();
-  hideFeedback(agendamentoFeedback);
+cancelEditBtn.addEventListener("click", function () {
+  returnToList(true);
+});
 
-  if (isVisualizador()) {
-    showAlertModal("Sua conta possui apenas permissão de visualização. Não é possível criar ou editar agendamentos.");
+agendamentoForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
+  hideFeedback(agendamentoFeedback);
+  if (!canCreate()) {
+    showFeedback(agendamentoFeedback, "Sua conta possui apenas permissão de visualização.", "error");
     return;
   }
-
-  var nomeEvento = document.getElementById("nome-evento").value.trim();
-  var dataEvento = document.getElementById("data-evento").value;
-  var horaInicio = document.getElementById("hora-inicio").value;
-  var horaFim = document.getElementById("hora-fim").value;
-  var qtdParticipantes = document.getElementById("qtd-participantes").value;
-  var observacoes = document.getElementById("observacoes").value.trim();
-  var editId = editingId.value;
-
-  if (!nomeEvento || !dataEvento || !horaInicio || !horaFim) {
+  var payload = buildPayload();
+  if (!payload.nome_evento || !payload.data_evento || !payload.hora_inicio || !payload.hora_fim || payload.quantidade_participantes == null) {
     showFeedback(agendamentoFeedback, "Preencha todos os campos obrigatórios.", "error");
     return;
   }
-
-  if (horaFim <= horaInicio) {
-    showFeedback(agendamentoFeedback, "A hora do fim deve ser posterior à hora de início.", "error");
+  if (payload.hora_fim <= payload.hora_inicio) {
+    showFeedback(agendamentoFeedback, "O horário de fim deve ser posterior ao horário de início.", "error");
     return;
   }
 
-  var token = getToken();
-  if (!token) {
-    showFeedback(agendamentoFeedback, "Sessão expirada. Faça login novamente.", "error");
-    setTimeout(function () {
-      clearToken();
-      showLogin();
-    }, 1500);
-    return;
-  }
-
-  setButtonLoading(agendamentoBtn, true);
-
-  var isEditing = !!editId;
-  var method = isEditing ? "PUT" : "POST";
-  var url = isEditing
-    ? API_URL + "/agendamentos/" + encodeURIComponent(editId)
-    : API_URL + "/agendamentos/criar_agendamento";
-
-  var body = buildBody(nomeEvento, dataEvento, horaInicio, horaFim, qtdParticipantes, observacoes);
-
+  var id = editingId.value;
+  var isEditing = Boolean(id);
+  setButtonLoading(agendamentoBtn, true, isEditing ? "Salvando..." : "Confirmando...");
   try {
-    var res = await fetch(url, {
-      method: method,
-      headers: apiHeaders(),
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      handleAuthError(res.status);
-      var data = await res.json().catch(function () { return null; });
-      var msg = data?.detail || data?.message || "Erro ao salvar agendamento.";
-      throw new Error(msg);
+    var response = await fetch(
+      isEditing ? API_URL + "/agendamentos/" + encodeURIComponent(id) : API_URL + "/agendamentos/criar_agendamento",
+      { method: isEditing ? "PUT" : "POST", headers: apiHeaders(), body: JSON.stringify(payload) }
+    );
+    if (!response.ok) {
+      if (handleAuthError(response.status)) return;
+      throw new Error(await responseError(response, "Não foi possível salvar o agendamento."));
     }
-
-    showFeedback(agendamentoFeedback, isEditing ? "Agendamento atualizado com sucesso!" : "Agendamento confirmado com sucesso!", "success");
-    resetEditState();
-    refreshAll();
+    resetFormState();
+    showView("view-agendamentos");
+    await refreshAll();
+    showOperationStatus(isEditing ? "Agendamento atualizado com sucesso." : "Agendamento criado com sucesso.", "success", true);
+    navigationOrigin = null;
   } catch (err) {
     showFeedback(agendamentoFeedback, err.message, "error");
   } finally {
@@ -478,470 +579,43 @@ agendamentoForm.addEventListener("submit", async function (e) {
   }
 });
 
-tabelaBody.addEventListener("click", function (e) {
-  var target = e.target;
-  if (!target.classList.contains("btn-sm")) return;
-
-  if (isVisualizador()) {
-    showAlertModal("Sua conta possui apenas permissão de visualização.");
-    return;
-  }
-
-  var id = target.getAttribute("data-id");
-  if (!id) return;
-
-  if (target.classList.contains("btn-edit")) {
-    preencherFormularioEdicao(id);
-  } else if (target.classList.contains("btn-danger")) {
-    confirmarExclusao(id);
-  }
+scheduleSection.addEventListener("click", function (event) {
+  var button = event.target.closest("button[data-action]");
+  if (!button) return;
+  var action = button.dataset.action;
+  if (action === "create") openFormForCreate();
+  if (action === "retry") refreshAll();
+  if (action === "edit") openEditForm(button.dataset.id);
+  if (action === "delete") confirmDelete(button.dataset.id);
 });
 
-function preencherFormularioEdicao(id) {
-  var ev = null;
-  for (var i = 0; i < agendamentosCache.length; i++) {
-    if (agendamentosCache[i].id === id) {
-      ev = agendamentosCache[i];
-      break;
-    }
-  }
+buscaInput.addEventListener("input", renderAgendamentos);
 
-  if (!ev) {
-    showFeedback(agendamentoFeedback, "Agendamento não encontrado.", "error");
-    return;
-  }
-
-  editingId.value = ev.id;
-  document.getElementById("nome-evento").value = ev.nome_evento || "";
-  document.getElementById("data-evento").value = ev.data_evento || "";
-  document.getElementById("hora-inicio").value = ev.hora_inicio ? ev.hora_inicio.substring(0, 5) : "";
-  document.getElementById("hora-fim").value = ev.hora_fim ? ev.hora_fim.substring(0, 5) : "";
-  document.getElementById("qtd-participantes").value = ev.quantidade_participantes != null ? ev.quantidade_participantes : "";
-  document.getElementById("observacoes").value = ev.observacoes || "";
-
-  agendamentoBtn.textContent = "Salvar Alterações";
-  cancelEditBtn.style.display = "inline-flex";
-  formTitle.textContent = "Editar Agendamento";
-
-  hideFeedback(agendamentoFeedback);
-  document.getElementById("nome-evento").focus();
-  agendamentoForm.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function confirmarExclusao(id) {
-  showConfirmModal(
-    "Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.",
-    function () {
-      excluirAgendamento(id);
-    }
-  );
-}
-
-async function excluirAgendamento(id) {
-  try {
-    var res = await fetch(API_URL + "/agendamentos/" + encodeURIComponent(id), {
-      method: "DELETE",
-      headers: apiHeaders(),
-    });
-
-    if (!res.ok) {
-      handleAuthError(res.status);
-      var data = await res.json().catch(function () { return null; });
-      var msg = data?.detail || data?.message || "Erro ao excluir agendamento.";
-      throw new Error(msg);
-    }
-
-    if (editingId.value === id) {
-      resetEditState();
-    }
-
-    refreshAll();
-  } catch (err) {
-    showAlertModal("Erro: " + err.message);
-  }
-}
-
-buscaInput.addEventListener("input", function () {
-  var query = buscaInput.value;
-  var filtrados = filtrarAgendamentos(query);
-  renderTabela(filtrados);
+modalOverlay.addEventListener("click", function (event) {
+  if (event.target === modalOverlay) hideModal();
 });
 
-var cisCache = [];
-
-var ciEditor = null;
-var ciEditorInited = false;
-
-function initCIEditor() {
-  if (ciEditorInited) return;
-  var ta = document.getElementById("ci-descricao");
-  if (!ta || typeof Jodit === "undefined") return;
-  ciEditor = Jodit.make(ta, {
-    toolbarButtonSize: "small",
-    buttons: "bold,italic,underline,|,ul,ol,|,table,link,|,undo,redo,|,fullsize",
-    disablePlugins: "speech-recognize",
-    height: 250,
-    showCharsCounter: false,
-    showWordsCounter: false,
-    showXPathInStatusbar: false,
-  });
-  ciEditorInited = true;
-
-  document.addEventListener("keydown", function escExit(e) {
-    if (e.key === "Escape" && ciEditor && ciEditor.container && ciEditor.container.classList.contains("jodit_fullsize")) {
-      ciEditor.toggleFullSize(false);
-    }
-  });
-}
-
-function toggleSignatarioFields() {
-  var tipo = document.getElementById("ci-tipo").value;
-  var fields = document.getElementById("ci-signatario-fields");
-  var isCI = tipo === "comunicacao_interna";
-  if (fields) fields.style.display = isCI ? "" : "none";
-  var nome = document.getElementById("ci-nome");
-  var sobrenome = document.getElementById("ci-sobrenome");
-  var cargo = document.getElementById("ci-cargo");
-  if (nome) nome.required = isCI;
-  if (sobrenome) sobrenome.required = isCI;
-  if (cargo) cargo.required = isCI;
-}
-
-function getCIEditorContent() {
-  if (ciEditor) return ciEditor.value;
-  return document.getElementById("ci-descricao").value;
-}
-
-function setCIEditorContent(html) {
-  if (ciEditor) {
-    ciEditor.value = html || "";
-  } else {
-    document.getElementById("ci-descricao").value = html || "";
-  }
-}
-
-function resetCIForm() {
-  document.getElementById("ci-editing-id").value = "";
-  document.getElementById("ci-form").reset();
-  document.getElementById("ci-tipo").value = "comunicacao_interna";
-  document.getElementById("ci-btn").textContent = "Gerar e Baixar CI";
-  document.getElementById("ci-cancel-edit-btn").style.display = "none";
-  setCIEditorContent("");
-  toggleSignatarioFields();
-  var feedback = document.getElementById("ci-feedback");
-  feedback.textContent = "";
-  feedback.className = "feedback";
-}
-
-function switchTab(tabName) {
-  document.querySelectorAll(".tab").forEach(function (t) {
-    t.classList.remove("active");
-  });
-  document.querySelectorAll(".tab-content").forEach(function (c) {
-    c.classList.remove("active");
-  });
-
-  var activeTab = document.querySelector('.tab[data-tab="' + tabName + '"]');
-  var activeContent = document.getElementById("tab-" + tabName);
-  if (activeTab) activeTab.classList.add("active");
-  if (activeContent) activeContent.classList.add("active");
-
-  if (tabName === "ci") {
-    atualizarEstadoCI();
-    loadCIs();
-    setTimeout(initCIEditor, 100);
-  }
-}
-
-document.getElementById("tab-nav").addEventListener("click", function (e) {
-  var tab = e.target.closest(".tab");
-  if (!tab) return;
-  switchTab(tab.getAttribute("data-tab"));
-});
-
-function atualizarEstadoCI() {
-  var overlay = document.getElementById("ci-disabled-overlay");
-  var content = document.getElementById("ci-content");
-  var isVis = isVisualizador();
-  var hasPerm = temPermissaoCI();
-
-  if (isVis || !hasPerm) {
-    if (overlay) overlay.style.display = "flex";
-    if (content) content.style.opacity = "0.5";
-    if (content) content.style.pointerEvents = "none";
-  } else {
-    if (overlay) overlay.style.display = "none";
-    if (content) content.style.opacity = "1";
-    if (content) content.style.pointerEvents = "auto";
-  }
-
-  if (isVis) {
-    var formCard = document.querySelector("#tab-ci .card-form");
-    if (formCard) formCard.style.display = "none";
-  }
-}
-
-function renderTabelaCIs(cis) {
-  var tbody = document.getElementById("tabela-cis-body");
-  if (!cis || cis.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="8" class="empty-state">Nenhuma Comunicação Interna encontrada.</td></tr>';
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape" && modalOverlay.classList.contains("active")) {
+    hideModal();
     return;
   }
-
-  function emitente(ci) {
-    if (ci.tipo === "solicitacao_material") return "Erika Siqueira Souza Battistelli";
-    if (ci.nome_signatario) return ci.nome_signatario + (ci.sobrenome_signatario ? " " + ci.sobrenome_signatario : "");
-    return ci.criador_nome || "";
-  }
-
-  function tipoLabel(tipo) {
-    if (tipo === "solicitacao_material") return "Sol. Material";
-    return "CI";
-  }
-
-  var html = "";
-  for (var i = 0; i < cis.length; i++) {
-    var ci = cis[i];
-    html +=
-      '<tr>' +
-        '<td>' + ci.numero_ci + '</td>' +
-        '<td>' + escapeHtml(tipoLabel(ci.tipo)) + '</td>' +
-        '<td>' + escapeHtml(ci.titulo) + '</td>' +
-        '<td>' + escapeHtml(ci.de || "-") + '</td>' +
-        '<td>' + escapeHtml(ci.para || "-") + '</td>' +
-        '<td>' + formatDate(ci.data) + '</td>' +
-        '<td>' + escapeHtml(emitente(ci)) + '</td>' +
-        '<td class="td-actions">' +
-          '<button class="btn btn-sm btn-edit editar-ci-btn" data-id="' + ci.id + '" title="Editar">Editar</button>' +
-          '<button class="btn btn-sm btn-edit baixar-ci-btn" data-id="' + ci.id + '" title="Baixar PDF">PDF</button>' +
-        '</td>' +
-      '</tr>';
-  }
-  tbody.innerHTML = html;
-}
-
-async function loadCIs() {
-  try {
-    var res = await fetch(API_URL + "/api/v1/ci", {
-      method: "GET",
-      headers: apiHeaders(),
-    });
-
-    if (!res.ok) {
-      handleAuthError(res.status);
-      cisCache = [];
-    } else {
-      var data = await res.json();
-      cisCache = Array.isArray(data) ? data : [];
+  if (event.key === "Tab" && modalOverlay.classList.contains("active")) {
+    var focusable = modalActions.querySelectorAll("button:not(:disabled)");
+    if (!focusable.length) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
-  } catch (err) {
-    cisCache = [];
-  }
-
-  var query = document.getElementById("busca-cis") ? document.getElementById("busca-cis").value : "";
-  var filtrados = query ? cisCache.filter(function (ci) {
-    return ci.titulo.toLowerCase().indexOf(query.toLowerCase()) !== -1;
-  }) : cisCache;
-  renderTabelaCIs(filtrados);
-}
-
-document.getElementById("ci-form").addEventListener("submit", async function (e) {
-  e.preventDefault();
-  var feedback = document.getElementById("ci-feedback");
-  hideFeedback(feedback);
-
-  if (!temPermissaoCI()) {
-    showAlertModal("Você não tem permissão para gerar Comunicação Interna.");
-    return;
-  }
-
-  var tipo = document.getElementById("ci-tipo").value;
-  var de = document.getElementById("ci-de").value.trim();
-  var para = document.getElementById("ci-para").value.trim();
-  var titulo = document.getElementById("ci-titulo").value.trim();
-  var data = document.getElementById("ci-data").value;
-  var descricao = getCIEditorContent();
-  var nomeSignatario = document.getElementById("ci-nome").value.trim();
-  var sobrenomeSignatario = document.getElementById("ci-sobrenome").value.trim();
-  var cargoSignatario = document.getElementById("ci-cargo").value.trim();
-  var editId = document.getElementById("ci-editing-id").value;
-
-  if (!tipo || !de || !para || !titulo || !data || !descricao) {
-    showFeedback(feedback, "Preencha todos os campos obrigatórios.", "error");
-    return;
-  }
-
-  if (tipo === "comunicacao_interna") {
-    if (!nomeSignatario || !sobrenomeSignatario || !cargoSignatario) {
-      showFeedback(feedback, "Preencha nome, sobrenome e cargo do signatário.", "error");
-      return;
-    }
-  }
-
-  var btn = document.getElementById("ci-btn");
-  setButtonLoading(btn, true);
-
-  var isEditing = !!editId;
-  var method = isEditing ? "PUT" : "POST";
-  var url = isEditing
-    ? API_URL + "/api/v1/ci/" + encodeURIComponent(editId)
-    : API_URL + "/api/v1/ci";
-
-  var body = {
-    tipo: tipo,
-    de: de,
-    para: para,
-    titulo: titulo,
-    data: data,
-    descricao: descricao,
-  };
-
-  if (tipo === "comunicacao_interna") {
-    body.nome_signatario = nomeSignatario;
-    body.sobrenome_signatario = sobrenomeSignatario;
-    body.cargo_signatario = cargoSignatario;
-  } else {
-    body.nome_signatario = null;
-    body.sobrenome_signatario = null;
-    body.cargo_signatario = null;
-  }
-
-  try {
-    var res = await fetch(url, {
-      method: method,
-      headers: apiHeaders(),
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      handleAuthError(res.status);
-      var errData = await res.json().catch(function () { return null; });
-      throw new Error(errData?.detail || "Erro ao processar CI.");
-    }
-
-    var blob = await res.blob();
-    var downloadUrl = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = "CI_" + titulo.substring(0, 30) + ".pdf";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(downloadUrl);
-
-    showFeedback(feedback, isEditing ? "CI atualizada com sucesso!" : "CI gerada com sucesso!", "success");
-    resetCIForm();
-    loadCIs();
-  } catch (err) {
-    showFeedback(feedback, err.message, "error");
-  } finally {
-    setButtonLoading(btn, false);
   }
 });
-
-document.getElementById("tabela-cis-body").addEventListener("click", async function (e) {
-  var editBtn = e.target.closest(".editar-ci-btn");
-  if (editBtn) {
-    var ciId = editBtn.getAttribute("data-id");
-    if (ciId) preencherFormularioEdicaoCI(ciId);
-    return;
-  }
-
-  var btn = e.target.closest(".baixar-ci-btn");
-  if (!btn) return;
-  var ciId = btn.getAttribute("data-id");
-  if (!ciId) return;
-
-  var res = await fetch(API_URL + "/api/v1/ci/" + encodeURIComponent(ciId) + "/pdf", {
-    method: "GET",
-    headers: { "Authorization": "Bearer " + getToken() },
-  });
-
-  if (!res.ok) {
-    handleAuthError(res.status);
-    return;
-  }
-
-  var blob = await res.blob();
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.href = url;
-  a.download = "CI_" + ciId + ".pdf";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});
-
-function preencherFormularioEdicaoCI(ciId) {
-  var ci = null;
-  for (var i = 0; i < cisCache.length; i++) {
-    if (cisCache[i].id === ciId) {
-      ci = cisCache[i];
-      break;
-    }
-  }
-
-  if (!ci) {
-    showAlertModal("Comunicação Interna não encontrada.");
-    return;
-  }
-
-  document.getElementById("ci-editing-id").value = ci.id;
-  document.getElementById("ci-tipo").value = ci.tipo || "comunicacao_interna";
-  document.getElementById("ci-de").value = ci.de || "";
-  document.getElementById("ci-para").value = ci.para || "";
-  document.getElementById("ci-titulo").value = ci.titulo || "";
-  document.getElementById("ci-data").value = ci.data || "";
-  document.getElementById("ci-nome").value = ci.nome_signatario || "";
-  document.getElementById("ci-sobrenome").value = ci.sobrenome_signatario || "";
-  document.getElementById("ci-cargo").value = ci.cargo_signatario || "";
-  toggleSignatarioFields();
-
-  setTimeout(function () {
-    setCIEditorContent(ci.descricao || "");
-  }, 200);
-
-  document.getElementById("ci-btn").textContent = "Salvar Alterações";
-  document.getElementById("ci-cancel-edit-btn").style.display = "inline-flex";
-  document.getElementById("ci-feedback").textContent = "";
-  document.getElementById("ci-feedback").className = "feedback";
-  document.getElementById("ci-titulo").focus();
-  document.getElementById("ci-form").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-document.getElementById("ci-cancel-edit-btn").addEventListener("click", function () {
-  resetCIForm();
-});
-
-var ciTipoSelect = document.getElementById("ci-tipo");
-if (ciTipoSelect) {
-  ciTipoSelect.addEventListener("change", function () {
-    toggleSignatarioFields();
-  });
-}
-
-var buscaCIsInput = document.getElementById("busca-cis");
-if (buscaCIsInput) {
-  buscaCIsInput.addEventListener("input", function () {
-    var query = buscaCIsInput.value.toLowerCase().trim();
-    var filtrados = query ? cisCache.filter(function (ci) {
-      var emitenteNome = ci.nome_signatario || ci.criador_nome || "";
-      var sobrenome = ci.sobrenome_signatario || "";
-      return ci.titulo.toLowerCase().indexOf(query) !== -1
-        || (ci.de || "").toLowerCase().indexOf(query) !== -1
-        || (ci.para || "").toLowerCase().indexOf(query) !== -1
-        || emitenteNome.toLowerCase().indexOf(query) !== -1
-        || sobrenome.toLowerCase().indexOf(query) !== -1;
-    }) : cisCache;
-    renderTabelaCIs(filtrados);
-  });
-}
 
 (function init() {
-  if (getToken()) {
-    showDashboard();
-  } else {
-    showLogin();
-  }
+  if (getToken()) showDashboard();
+  else showLogin();
 })();
