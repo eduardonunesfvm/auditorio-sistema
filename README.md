@@ -1,307 +1,55 @@
+# Sistema de Controle do Auditório
 
-# Sistema de Agendamento do Auditório
+[![CI](https://github.com/eduardonunesfvm/auditorio-sistema/actions/workflows/ci.yml/badge.svg)](https://github.com/eduardonunesfvm/auditorio-sistema/actions)
 
-Sistema web full-stack para gerenciamento de reservas de auditório corporativo, com autenticação JWT, detecção de conflitos de horário e interface responsiva.
-
-![interface](docs/interface.png)
-![login](docs/login.png)
+Sistema interno para autenticação de usuários e gerenciamento dos agendamentos do auditório.
 
 ## Funcionalidades
 
-- **Autenticação segura** — login com JWT e senhas hasheadas com bcrypt
-- **Cadastro e edição de eventos** — nome, data, horário, participantes e observações
-- **Detecção de conflitos** — impede sobreposição de horários no mesmo dia
-- **Card de próximo evento** — destaque visual do evento mais próximo
-- **Busca textual** — filtra agendamentos por nome ou data
-- **CRUD completo** — criar, listar, editar e excluir agendamentos
-- **Permissões por usuário** — cada usuário edita/exclui apenas seus próprios eventos
-- **Health check** — endpoint de monitoramento da API e banco de dados
+- Cadastro e autenticação com JWT.
+- Perfis `admin`, `superintendente` e `visualizador`.
+- Criação, consulta, edição e exclusão de agendamentos.
+- Detecção de conflito entre horários.
+- Destaque do próximo evento e busca de agendamentos.
+- Interface responsiva servida por Nginx.
 
-## Stack
+## Tecnologias
 
-| Camada | Tecnologia |
-|--------|------------|
-| Backend | Python 3, FastAPI |
-| Frontend | HTML5, CSS3, JavaScript (vanilla) |
-| Banco | PostgreSQL |
-| ORM | SQLAlchemy 2.0 |
-| Migrações | Alembic |
-| Autenticação | JWT + bcrypt (passlib) |
-| Validação | Pydantic v2 |
-| Containerização | Docker, docker compose |
-| Proxy reverso | Nginx |
-| CI/CD | GitHub Actions |
-| Deploy | Render |
+- Backend: FastAPI, SQLAlchemy, Alembic e PostgreSQL.
+- Frontend: HTML, CSS e JavaScript sem framework.
+- Infraestrutura: Docker Compose e GitHub Actions.
 
-## Arquitetura
+## Execução com Docker
 
-```
-cliente (browser)  →  FastAPI (REST)  →  Service  →  Repository  →  PostgreSQL
-                         ↑
-                   JWT Auth (security.py)
-```
-
-O backend segue o padrão **Repository-Service**, separando acesso a dados, regras de negócio e rotas HTTP:
-
-- `models.py` — definição das tabelas (SQLAlchemy ORM)
-- `schemas.py` — validação de entrada/saída (Pydantic)
-- `repository.py` — queries e acesso ao banco
-- `service.py` — lógica de negócio e validações
-- `routers/` — endpoints REST
-- `security.py` — hash de senha, criação e validação de tokens JWT
-
-## Estrutura do Projeto
-
-```
-.
-├── docker-compose.yml          # Orquestração dos containers
-├── .env.docker                 # Variáveis de ambiente Docker
-├── auditorio-front/            # Frontend (SPA vanilla)
-│   ├── Dockerfile              # Container nginx
-│   ├── nginx.conf              # Proxy reverso p/ API
-│   ├── index.html
-│   ├── app.js
-│   └── styles.css
-├── projeto-auditorio/          # Backend FastAPI
-│   ├── Dockerfile              # Container Python/FastAPI
-│   ├── .dockerignore
-│   ├── app/
-│   │   ├── main.py            # Entry point, CORS, routers
-│   │   ├── database.py        # Conexão SQLAlchemy
-│   │   ├── models.py          # Tabelas: usuarios, agendamentos
-│   │   ├── schemas.py         # Schemas Pydantic
-│   │   ├── repository.py      # Camada de dados
-│   │   ├── service.py         # Regras de negócio
-│   │   ├── security.py        # JWT + bcrypt
-│   │   ├── dependencies.py    # Injeção de dependências
-│   │   ├── tests.py           # Testes com pytest
-│   │   └── routers/
-│   │       ├── auth.py        # /auth/login, /auth/cadastro
-│   │       └── agendamentos.py # CRUD de agendamentos
-│   ├── alembic/               # Migrações
-│   ├── .env.example
-│   └── requirements.txt
-└── README.md
-```
-
-## API Endpoints
-
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `POST` | `/auth/login` | Login e obtenção de token | Não |
-| `POST` | `/auth/cadastro` | Cadastro de novo usuário | Não |
-| `GET` | `/agendamentos` | Listar todos os agendamentos | Sim |
-| `GET` | `/agendamentos/proximo` | Próximo evento agendado | Sim |
-| `POST` | `/agendamentos/criar_agendamento` | Criar agendamento | Sim |
-| `PUT` | `/agendamentos/{id}` | Atualizar agendamento | Sim |
-| `DELETE` | `/agendamentos/{id}` | Excluir agendamento | Sim |
-| `GET` | `/health` | Health check | Não |
-
-## Como Rodar
-
-### Pré-requisitos
-
-- Python 3.10+
-- PostgreSQL 14+
-- Virtual environment (recomendado)
-
-### 1. Clone o repositório
+Configure `DATABASE_URL`, `SECRET_KEY` e as demais variáveis do `.env.docker`, depois execute:
 
 ```bash
-git clone https://github.com/seu-usuario/sistema-controle-auditorio.git
-cd sistema-controle-auditorio
+docker compose up --build
 ```
 
-### 2. Backend
+- Frontend: `http://localhost`
+- API: `http://localhost:8000`
+- Documentação em desenvolvimento: `http://localhost:8000/docs`
+- Health check: `GET /health`
 
-```bash
-cd projeto-auditorio
+## API principal
 
-# Criar e ativar ambiente virtual
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/Mac:
-source .venv/bin/activate
+| Método | Endpoint | Descrição |
+|---|---|---|
+| `POST` | `/auth/login` | Autenticar usuário |
+| `POST` | `/auth/cadastro` | Cadastrar usuário |
+| `GET` | `/api/v1/agendamentos` | Listar agendamentos |
+| `GET` | `/api/v1/agendamentos/proximo` | Consultar próximo evento |
+| `POST` | `/api/v1/agendamentos` | Criar agendamento |
+| `PUT` | `/api/v1/agendamentos/{id}` | Atualizar agendamento |
+| `DELETE` | `/api/v1/agendamentos/{id}` | Excluir agendamento |
 
-# Instalar dependências
-pip install -r requirements.txt
-
-# Configurar variáveis de ambiente
-cp .env.example .env
-# Edite .env com suas credenciais do PostgreSQL
-
-# Rodar migrações
-alembic upgrade head
-
-# Iniciar servidor
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 3. Frontend
-
-Abra `auditorio-front/index.html` diretamente no navegador ou sirva com qualquer servidor HTTP:
-
-```bash
-cd auditorio-front
-python -m http.server 5500
-```
-
-Acesse `http://localhost:5500`.
-
-### 4. Criar usuário
-
-Use o endpoint de cadastro ou a documentação interativa do FastAPI em `http://localhost:8000/docs`.
-
-## Docker
-
-Suba toda a stack com um comando:
-
-```bash
-# Configure as variaveis de ambiente (edite o arquivo com suas credenciais)
-copy .env.docker .env
-# Edite .env com sua DATABASE_URL e SECRET_KEY
-
-# Build e sobe os containers
-docker compose up -d --build
-```
-
-Acesse `http://localhost` (porta 80).
-
-### Servicos
-
-| Servico | Porta | Descricao |
-|---------|-------|-----------|
-| `frontend` | 80 | Nginx servindo SPA + reverse proxy para API |
-| `api` | 8000 | FastAPI (tambem exposta para debug) |
-
-> O banco de dados e externo (Neon PostgreSQL). Configure a `DATABASE_URL` no `.env`.
-
-### Comandos uteis
-
-```bash
-# Ver logs
-docker compose logs -f api
-
-# Rodar migracoes manualmente (o entrypoint ja faz automaticamente)
-docker compose exec api alembic upgrade head
-
-# Parar tudo
-docker compose down
-
-# Recriar do zero
-docker compose down && docker compose up -d --build
-```
-
-## Deploy no Render
-
-O `Dockerfile` na raiz do projeto esta pronto para deploy no [Render](https://render.com).
-
-### Configuracao
-
-1. Crie um **PostgreSQL** no Render (New → PostgreSQL)
-2. Crie um **Web Service** no Render (New → Web Service)
-3. Conecte ao repositorio do GitHub
-4. Configure o Web Service:
-
-| Campo | Valor |
-|-------|-------|
-| Runtime | Docker |
-| Dockerfile Path | `Dockerfile` |
-
-5. Adicione as variaveis de ambiente (Environment → Environment Variables):
-
-| Variavel | Valor |
-|----------|-------|
-| `DATABASE_URL` | String de conexao interna do PostgreSQL do Render |
-| `SECRET_KEY` | Chave secreta para JWT |
-
-> O Render define `PORT` e a `DATABASE_URL` interna automaticamente se vinculados. Para usar o valor interno, copie a string da aba **Connections** do banco PostgreSQL.
-
-6. Clique em **Create Web Service**
-
-### Health Check
-
-Configure o health check path como `/health`. O endpoint verifica a conexao com o banco.
-
-## CI/CD
-
-O projeto usa GitHub Actions para rodar testes automaticamente em PRs e pushes para `master`.
-
-### Pipeline
-
-```
-PR aberta → GitHub Actions roda testes → tests passam? → merge liberado → Render faz deploy
-```
-
-- **Testes**: roda `pytest` com SQLite em memoria (sem depender de banco externo)
-- **Build**: verifica se a imagem Docker compila sem erros
-- **Deploy**: Render detecta push no `master` e faz deploy automatico
-
-### Como travar merges que quebram o sistema
-
-Para impedir que um merge quebre a aplicacao, configure **branch protection** no GitHub:
-
-1. Va em **Settings → Branches → Add classic branch protection rule**
-2. Branch name pattern: `master`
-3. Marque **Require status checks to pass before merging**
-4. Busque por `test` e `build` nos checks
-5. Marque **Require a pull request before merging** (opcional, para code review)
-
-Com isso, nenhum merge entra no `master` sem que os testes passem. Se o PR quebrar algo, o merge e bloqueado e o Render nunca recebe o codigo quebrado.
-
-### Rollback no Render
-
-Se algo passar mesmo assim, o Render guarda o historico de deploys. Basta ir em **Web Service → Deploys**, clicar no deploy anterior e selecionar **Rollback**.
-
-## Testes
+## Testes e migrations
 
 ```bash
 cd projeto-auditorio
 pytest app/tests.py -v
-```
-
-## Banco de Dados
-
-### Diagrama
-
-```
-usuarios
-├── id (UUID, PK)
-├── nome (VARCHAR 100)
-├── login (VARCHAR 50, UNIQUE)
-└── senha_hash (VARCHAR 255)
-
-agendamentos
-├── id (UUID, PK)
-├── nome_evento (VARCHAR 150)
-├── data_evento (DATE)
-├── hora_inicio (TIME)
-├── hora_fim (TIME)
-├── quantidade_participantes (INTEGER)
-├── observacoes (TEXT)
-└── usuario_id (UUID, FK → usuarios.id)
-```
-
-### Migrações
-
-```bash
-# Verificar status
-alembic current
-
-# Gerar nova migração após alterar models.py
-alembic revision --autogenerate -m "descricao da alteracao"
-
-# Aplicar migrações
 alembic upgrade head
 ```
 
-## Regras de Negócio
-
-- Hora de início deve ser menor que hora de término
-- Não permite sobreposição de horários no mesmo dia
-- Apenas o criador do evento pode editá-lo ou excluí-lo
-
----
-
-Desenvolvido por [Eduardo Nunes](https://linkedin.com/in/eduardonunesfvm)
+Antes de aplicar migrations destrutivas em produção, faça o backup operacional do banco.

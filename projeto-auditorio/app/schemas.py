@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import date, time, datetime
+from datetime import date, time
 from typing import Optional
 from uuid import UUID
 from app.models import UserRole
@@ -67,46 +67,3 @@ class AgendamentoUpdate(BaseModel):
     
     class Config:
         from_attributes = True
-
-
-class ComunicacaoInternaCreate(BaseModel):
-    tipo: str = Field(..., max_length=50, min_length=1)
-    de: str = Field(..., max_length=255, min_length=1)
-    para: str = Field(..., max_length=255, min_length=1)
-    titulo: str = Field(..., max_length=255, min_length=1)
-    descricao: str = Field(..., min_length=1)
-    data: date
-    nome_signatario: Optional[str] = Field(None, max_length=255)
-    sobrenome_signatario: Optional[str] = Field(None, max_length=255)
-    cargo_signatario: Optional[str] = Field(None, max_length=255)
-
-
-class ComunicacaoInternaResponse(BaseModel):
-    id: UUID
-    numero_ci: int
-    tipo: str
-    de: str
-    para: str
-    titulo: str
-    descricao: str
-    data: date
-    nome_signatario: Optional[str] = None
-    sobrenome_signatario: Optional[str] = None
-    cargo_signatario: Optional[str] = None
-    usuario_id: UUID
-    criador_nome: str
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ComunicacaoInternaUpdate(BaseModel):
-    tipo: Optional[str] = None
-    de: Optional[str] = None
-    para: Optional[str] = None
-    titulo: Optional[str] = None
-    descricao: Optional[str] = None
-    data: Optional[date] = None
-    nome_signatario: Optional[str] = None
-    sobrenome_signatario: Optional[str] = None
-    cargo_signatario: Optional[str] = None
