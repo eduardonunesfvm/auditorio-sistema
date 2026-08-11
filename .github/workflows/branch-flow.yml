@@ -1,0 +1,38 @@
+name: Branch Flow
+
+on:
+  pull_request:
+    branches: [master, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-flow:
+    name: branch-flow
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validar origem do pull request
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          case "${BASE_REF}:${HEAD_REF}" in
+            master:develop|develop:feature/*|develop:fix/*|develop:hotfix/*)
+              echo "Fluxo permitido: ${HEAD_REF} -> ${BASE_REF}"
+              ;;
+            master:*)
+              echo "::error::Pull requests para master devem ter develop como origem."
+              exit 1
+              ;;
+            develop:*)
+              echo "::error::Pull requests para develop devem partir de feature/**, fix/** ou hotfix/**."
+              exit 1
+              ;;
+            *)
+              echo "::error::Fluxo de branches não reconhecido: ${HEAD_REF} -> ${BASE_REF}."
+              exit 1
+              ;;
+          esac
