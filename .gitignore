@@ -35,6 +35,10 @@ node_modules/
 playwright-report/
 test-results/
 
+# Backups locais do PostgreSQL
+*.dump
+*.backup
+
 # Sistema operacional
 .DS_Store
 Thumbs.db
