@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres-restore:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: restore-test-password
@@ -45,25 +45,36 @@ jobs:
         shell: bash
         run: |
           filename="auditorio-$(date -u +'%Y-%m-%d_%H%M%S').dump"
-          pg_dump \
-            --format=custom \
-            --no-owner \
-            --no-acl \
-            --dbname="$DATABASE_PUBLIC_URL" \
-            --file="$filename"
+          docker run --rm \
+            --env DATABASE_PUBLIC_URL \
+            --env BACKUP_FILENAME="$filename" \
+            --volume "$PWD:/backup" \
+            postgres:18 \
+            sh -c 'pg_dump \
+              --format=custom \
+              --no-owner \
+              --no-acl \
+              --dbname="$DATABASE_PUBLIC_URL" \
+              --file="/backup/$BACKUP_FILENAME"'
           sha256sum "$filename" > "$filename.sha256"
           echo "filename=$filename" >> "$GITHUB_OUTPUT"
 
       - name: Testar restauracao completa
         shell: bash
         run: |
-          pg_restore \
-            --clean \
-            --if-exists \
-            --no-owner \
-            --no-acl \
-            --dbname="$RESTORE_DATABASE_URL" \
-            "${{ steps.dump.outputs.filename }}"
+          docker run --rm \
+            --network host \
+            --env RESTORE_DATABASE_URL \
+            --env BACKUP_FILENAME="${{ steps.dump.outputs.filename }}" \
+            --volume "$PWD:/backup:ro" \
+            postgres:18 \
+            sh -c 'pg_restore \
+              --clean \
+              --if-exists \
+              --no-owner \
+              --no-acl \
+              --dbname="$RESTORE_DATABASE_URL" \
+              "/backup/$BACKUP_FILENAME"'
           psql "$RESTORE_DATABASE_URL" --set ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN
@@ -89,7 +100,7 @@ jobs:
 
       - name: Notificar falha por issue
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const title = "[Alerta] Falha no backup diario do PostgreSQL";
