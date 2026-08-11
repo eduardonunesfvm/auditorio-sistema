@@ -1,4 +1,5 @@
 const API_URL = (location.protocol === "file:" || location.port === "5500" || location.port === "4173") ? "http://127.0.0.1:8000" : "";
+const INTERVALO_MINUTOS = 30;
 
 var loginScreen = document.getElementById("login-screen");
 var dashboardScreen = document.getElementById("dashboard-screen");
@@ -6,6 +7,7 @@ var loginForm = document.getElementById("login-form");
 var loginFeedback = document.getElementById("login-feedback");
 var loginBtn = document.getElementById("login-btn");
 var logoutBtn = document.getElementById("logout-btn");
+var themeToggle = document.getElementById("theme-toggle");
 var listView = document.getElementById("view-agendamentos");
 var formView = document.getElementById("view-novo-agendamento");
 var listTitle = document.getElementById("list-title");
@@ -46,6 +48,18 @@ var availabilityDetails = document.getElementById("availability-details");
 var selectedDateLabel = document.getElementById("selected-date-label");
 var bookingSummaryDate = document.getElementById("booking-summary-date");
 var bookingSummaryTime = document.getElementById("booking-summary-time");
+var timeOptionsStatus = document.getElementById("time-options-status");
+var timeOptionsAlert = document.getElementById("time-options-alert");
+var reservedTimesContent = document.getElementById("reserved-times-content");
+var datePicker = document.getElementById("date-picker");
+var datePickerTrigger = document.getElementById("date-picker-trigger");
+var datePickerDisplay = document.getElementById("date-picker-display");
+var datePickerPopover = document.getElementById("date-picker-popover");
+var calendarMonthLabel = document.getElementById("calendar-month-label");
+var calendarGrid = document.getElementById("calendar-grid");
+var calendarPrevious = document.getElementById("calendar-previous");
+var calendarNext = document.getElementById("calendar-next");
+var calendarToday = document.getElementById("calendar-today");
 
 var agendamentosCache = [];
 var navigationOrigin = null;
@@ -56,8 +70,24 @@ var wizardState = {
   availability: null,
   availabilityDate: "",
   requestId: 0,
-  loading: false
+  loading: false,
+  abortController: null,
+  availabilityStart: NaN,
+  availabilityEnd: NaN,
+  blockedIntervals: [],
+  validStartOptions: [],
+  validEndOptions: [],
+  editSchedule: null,
+  pendingEditSelection: null,
+  reservedTimesExpanded: false
 };
+
+var calendarState = {
+  viewYear: 0,
+  viewMonth: 0,
+  focusedDate: ""
+};
+var memoryStorage = {};
 
 var ICONS = {
   plus: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
@@ -72,25 +102,62 @@ var ICONS = {
   error: '<svg class="state-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 17h.01"/></svg>'
 };
 
+function safeStorageGet(key) {
+  try {
+    var value = localStorage.getItem(key);
+    return value == null ? (memoryStorage[key] || null) : value;
+  } catch (error) {
+    return memoryStorage[key] || null;
+  }
+}
+
+function safeStorageSet(key, value) {
+  memoryStorage[key] = String(value);
+  try { localStorage.setItem(key, String(value)); } catch (error) {}
+}
+
+function safeStorageRemove(key) {
+  delete memoryStorage[key];
+  try { localStorage.removeItem(key); } catch (error) {}
+}
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
+function updateThemeControl() {
+  var dark = currentTheme() === "dark";
+  var label = dark ? "Ativar modo claro" : "Ativar modo escuro";
+  themeToggle.setAttribute("aria-label", label);
+  themeToggle.setAttribute("title", label);
+}
+
+function applyTheme(theme, persist) {
+  var value = theme === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", value);
+  if (persist) safeStorageSet("auditorio_theme", value);
+  updateThemeControl();
+}
+
 function getToken() {
-  return localStorage.getItem("access_token");
+  return safeStorageGet("access_token");
 }
 
 function setToken(token) {
-  localStorage.setItem("access_token", token);
+  safeStorageSet("access_token", token);
 }
 
 function clearSession() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("role");
+  safeStorageRemove("access_token");
+  safeStorageRemove("role");
 }
 
 function getRole() {
-  return localStorage.getItem("role");
+  return safeStorageGet("role");
 }
 
 function setRole(role) {
-  localStorage.setItem("role", role);
+  safeStorageSet("role", role);
 }
 
 function decodeTokenPayload(token) {
@@ -140,6 +207,147 @@ function formatDate(dateStr) {
   if (!dateStr) return "-";
   var parts = String(dateStr).substring(0, 10).split("-");
   return parts.length === 3 ? parts[2] + "/" + parts[1] + "/" + parts[0] : String(dateStr);
+}
+
+function daysInMonth(year, month) {
+  return new Date(year, month, 0, 12).getDate();
+}
+
+function parseIsoDate(value) {
+  var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  var parsed = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+  if (parsed.month < 1 || parsed.month > 12 || parsed.day < 1 || parsed.day > daysInMonth(parsed.year, parsed.month)) return null;
+  return parsed;
+}
+
+function datePartsToIso(year, month, day) {
+  return String(year).padStart(4, "0") + "-" + String(month).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+}
+
+function dateToIso(date) {
+  return datePartsToIso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+function isoToLocalDate(value) {
+  var parsed = parseIsoDate(value);
+  return parsed ? new Date(parsed.year, parsed.month - 1, parsed.day, 12) : null;
+}
+
+function todayIso() {
+  return dateToIso(new Date());
+}
+
+function addDaysToIso(value, amount) {
+  var date = isoToLocalDate(value);
+  if (!date) return "";
+  date.setDate(date.getDate() + amount);
+  return dateToIso(date);
+}
+
+function addMonthsToIso(value, amount) {
+  var parsed = parseIsoDate(value);
+  if (!parsed) return "";
+  var target = new Date(parsed.year, parsed.month - 1 + amount, 1, 12);
+  var day = Math.min(parsed.day, daysInMonth(target.getFullYear(), target.getMonth() + 1));
+  return datePartsToIso(target.getFullYear(), target.getMonth() + 1, day);
+}
+
+function buildCalendarDays(year, month) {
+  var first = new Date(year, month - 1, 1, 12);
+  first.setDate(first.getDate() - first.getDay());
+  var days = [];
+  for (var index = 0; index < 42; index += 1) {
+    var date = new Date(first.getFullYear(), first.getMonth(), first.getDate() + index, 12);
+    days.push({
+      value: dateToIso(date),
+      day: date.getDate(),
+      currentMonth: date.getMonth() === month - 1
+    });
+  }
+  return days;
+}
+
+function updateDatePickerDisplay() {
+  var hasDate = Boolean(parseIsoDate(dataEventoInput.value));
+  datePickerDisplay.textContent = hasDate ? formatDate(dataEventoInput.value) : "Selecione uma data";
+  datePickerDisplay.classList.toggle("date-picker-placeholder", !hasDate);
+}
+
+function renderCalendar(focusDay) {
+  var monthDate = new Date(calendarState.viewYear, calendarState.viewMonth - 1, 1, 12);
+  calendarMonthLabel.textContent = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(monthDate)
+    .replace(/^./, function (letter) { return letter.toUpperCase(); });
+  var selected = dataEventoInput.value;
+  var today = todayIso();
+  var dayButtons = buildCalendarDays(calendarState.viewYear, calendarState.viewMonth).map(function (item) {
+    var date = isoToLocalDate(item.value);
+    var label = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(date);
+    var classes = ["calendar-day"];
+    if (!item.currentMonth) classes.push("adjacent-month");
+    if (item.value === today) classes.push("today");
+    if (item.value === selected) classes.push("selected");
+    return '<button type="button" role="gridcell" class="' + classes.join(" ") + '" data-calendar-date="' + item.value + '"' +
+      ' aria-label="' + escapeHtml(label) + '" aria-selected="' + (item.value === selected ? "true" : "false") + '"' +
+      ' tabindex="' + (item.value === calendarState.focusedDate ? "0" : "-1") + '">' + item.day + '</button>';
+  });
+  var weeks = [];
+  for (var week = 0; week < 6; week += 1) {
+    weeks.push('<div class="calendar-week" role="row">' + dayButtons.slice(week * 7, week * 7 + 7).join("") + '</div>');
+  }
+  calendarGrid.innerHTML = weeks.join("");
+  if (focusDay) {
+    requestAnimationFrame(function () {
+      var target = calendarGrid.querySelector('[data-calendar-date="' + CSS.escape(calendarState.focusedDate) + '"]');
+      if (target) target.focus();
+    });
+  }
+}
+
+function openCalendar() {
+  var base = parseIsoDate(dataEventoInput.value) || parseIsoDate(todayIso());
+  calendarState.viewYear = base.year;
+  calendarState.viewMonth = base.month;
+  calendarState.focusedDate = dataEventoInput.value || todayIso();
+  renderCalendar(false);
+  datePickerPopover.hidden = false;
+  datePickerTrigger.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(function () {
+    var target = calendarGrid.querySelector('[data-calendar-date="' + CSS.escape(calendarState.focusedDate) + '"]');
+    if (target) target.focus();
+  });
+}
+
+function closeCalendar(restoreFocus) {
+  if (datePickerPopover.hidden) return;
+  datePickerPopover.hidden = true;
+  datePickerTrigger.setAttribute("aria-expanded", "false");
+  if (restoreFocus) datePickerTrigger.focus();
+}
+
+function showCalendarDate(value, focusDay) {
+  var parsed = parseIsoDate(value);
+  if (!parsed) return;
+  calendarState.focusedDate = value;
+  calendarState.viewYear = parsed.year;
+  calendarState.viewMonth = parsed.month;
+  renderCalendar(focusDay);
+}
+
+function selectEventDate(value) {
+  if (!parseIsoDate(value)) return;
+  var changed = dataEventoInput.value !== value;
+  dataEventoInput.value = value;
+  updateDatePickerDisplay();
+  closeCalendar(true);
+  if (!changed) return;
+  wizardState.pendingEditSelection = null;
+  wizardState.reservedTimesExpanded = false;
+  if (wizardState.editSchedule && wizardState.editSchedule.date !== value) wizardState.editSchedule = null;
+  resetTimeSelectors("Consultando horários disponíveis...");
+  renderReservedTimesState("loading");
+  hideFeedback(agendamentoFeedback);
+  loadAvailability();
 }
 
 function formatTime(timeStr) {
@@ -219,15 +427,30 @@ function applyRoleRestrictions() {
 }
 
 function resetAvailability() {
+  if (wizardState.abortController) wizardState.abortController.abort();
   wizardState.requestId += 1;
   wizardState.availability = null;
   wizardState.availabilityDate = "";
   wizardState.loading = false;
+  wizardState.abortController = null;
+  wizardState.availabilityStart = NaN;
+  wizardState.availabilityEnd = NaN;
+  wizardState.blockedIntervals = [];
+  wizardState.validStartOptions = [];
+  wizardState.validEndOptions = [];
+  wizardState.editSchedule = null;
+  wizardState.pendingEditSelection = null;
+  wizardState.reservedTimesExpanded = false;
   availabilityStatus.textContent = "Selecione uma data para consultar os horários.";
   availabilityStatus.className = "";
   availabilityTimeline.hidden = true;
   availabilityTimeline.innerHTML = "";
   availabilityDetails.innerHTML = "";
+  resetTimeSelectors("Selecione uma data para consultar os horários.");
+  renderReservedTimesState("initial");
+  updateDatePickerDisplay();
+  closeCalendar(false);
+  wizardNextBtn.disabled = false;
 }
 
 function setWizardStep(step, shouldFocus) {
@@ -268,7 +491,7 @@ function openFormForCreate() {
   navigationOrigin = { type: "new" };
   resetFormState();
   showView("view-novo-agendamento");
-  dataEventoInput.focus();
+  datePickerTrigger.focus();
 }
 
 function restoreListFocus() {
@@ -478,15 +701,238 @@ function refreshAll() {
 }
 
 function timeToMinutes(value) {
-  var parts = String(value || "").split(":");
-  if (parts.length < 2) return NaN;
-  return Number(parts[0]) * 60 + Number(parts[1]) + Number(parts[2] || 0) / 60;
+  var match = /^(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/.exec(String(value || ""));
+  if (!match) return NaN;
+  var hours = Number(match[1]);
+  var minutes = Number(match[2]);
+  var seconds = Number(match[3] || 0);
+  if (hours > 23 || minutes > 59 || seconds > 59) return NaN;
+  return hours * 60 + minutes + seconds / 60;
 }
 
 function minutesToTimeLabel(totalMinutes) {
-  var hours = Math.floor(totalMinutes / 60);
-  var minutes = Math.round(totalMinutes % 60);
+  if (!Number.isFinite(totalMinutes) || totalMinutes < 0) return "";
+  var wholeMinutes = Math.floor(totalMinutes);
+  var hours = Math.floor(wholeMinutes / 60);
+  var minutes = wholeMinutes % 60;
   return (hours < 10 ? "0" : "") + hours + ":" + (minutes < 10 ? "0" : "") + minutes;
+}
+
+function generateTimeOptions(start, end, intervalMinutes) {
+  var interval = intervalMinutes || INTERVALO_MINUTOS;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || interval <= 0 || start > end) return [];
+  var options = [];
+  for (var minute = start; minute <= end; minute += interval) options.push(minute);
+  return options;
+}
+
+function intervalValueToMinutes(value) {
+  return typeof value === "number" ? value : timeToMinutes(value);
+}
+
+function normalizeIntervals(intervals, rangeStart, rangeEnd) {
+  var normalized = (Array.isArray(intervals) ? intervals : []).map(function (interval) {
+    var start = intervalValueToMinutes(interval && interval.inicio);
+    var end = intervalValueToMinutes(interval && interval.fim);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    if (Number.isFinite(rangeStart)) start = Math.max(start, rangeStart);
+    if (Number.isFinite(rangeEnd)) end = Math.min(end, rangeEnd);
+    return start < end ? { inicio: start, fim: end } : null;
+  }).filter(Boolean).sort(function (a, b) {
+    return a.inicio - b.inicio || a.fim - b.fim;
+  });
+
+  return normalized.reduce(function (merged, interval) {
+    var previous = merged[merged.length - 1];
+    if (!previous || interval.inicio > previous.fim) {
+      merged.push({ inicio: interval.inicio, fim: interval.fim });
+    } else {
+      previous.fim = Math.max(previous.fim, interval.fim);
+    }
+    return merged;
+  }, []);
+}
+
+function isMinuteBlocked(minute, intervals) {
+  return intervals.some(function (interval) {
+    return minute >= interval.inicio && minute < interval.fim;
+  });
+}
+
+function calculateValidEndOptions(start, dayStart, dayEnd, blockedIntervals, intervalMinutes) {
+  if (!Number.isFinite(start) || start < dayStart || start >= dayEnd) return [];
+  var blocked = normalizeIntervals(blockedIntervals, dayStart, dayEnd);
+  if (isMinuteBlocked(start, blocked)) return [];
+
+  var limit = dayEnd;
+  for (var index = 0; index < blocked.length; index += 1) {
+    if (blocked[index].inicio > start) {
+      limit = blocked[index].inicio;
+      break;
+    }
+  }
+
+  return generateTimeOptions(dayStart, dayEnd, intervalMinutes).filter(function (candidate) {
+    return candidate > start && candidate <= limit;
+  });
+}
+
+function calculateValidStartOptions(dayStart, dayEnd, blockedIntervals, intervalMinutes) {
+  var blocked = normalizeIntervals(blockedIntervals, dayStart, dayEnd);
+  return generateTimeOptions(dayStart, dayEnd, intervalMinutes).filter(function (candidate) {
+    return candidate < dayEnd &&
+      calculateValidEndOptions(candidate, dayStart, dayEnd, blocked, intervalMinutes).length > 0;
+  });
+}
+
+function timePositionPercent(value, dayStart, dayEnd) {
+  if (!Number.isFinite(value) || !Number.isFinite(dayStart) || !Number.isFinite(dayEnd) || dayEnd <= dayStart) return 0;
+  return Math.max(0, Math.min(100, ((value - dayStart) / (dayEnd - dayStart)) * 100));
+}
+
+function isIntervalAvailable(start, end, dayStart, dayEnd, blockedIntervals) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < dayStart || end > dayEnd || start >= end) return false;
+  return !blockedIntervals.some(function (interval) {
+    return start < interval.fim && end > interval.inicio;
+  });
+}
+
+function uniqueSortedMinutes(values) {
+  return values.filter(Number.isFinite).filter(function (value, index, items) {
+    return items.indexOf(value) === index;
+  }).sort(function (a, b) { return a - b; });
+}
+
+function populateTimeSelect(select, placeholder, values, selectedValue, enabled) {
+  select.innerHTML = "";
+  var neutral = document.createElement("option");
+  neutral.value = "";
+  neutral.textContent = placeholder;
+  select.appendChild(neutral);
+  values.forEach(function (minute) {
+    var value = minutesToTimeLabel(minute);
+    var option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+  select.value = selectedValue && Array.from(select.options).some(function (option) {
+    return option.value === selectedValue;
+  }) ? selectedValue : "";
+  select.disabled = !enabled;
+}
+
+function setTimeOptionsStatus(message, type) {
+  timeOptionsStatus.textContent = message;
+  timeOptionsStatus.className = "time-options-status" + (type ? " " + type : "");
+  if (type === "success") clearTimeOptionsAlert();
+}
+
+function clearTimeOptionsAlert() {
+  timeOptionsAlert.textContent = "";
+  timeOptionsAlert.hidden = true;
+}
+
+function showTimeOptionsAlert(message) {
+  setTimeOptionsStatus("", "");
+  timeOptionsAlert.textContent = message;
+  timeOptionsAlert.hidden = false;
+}
+
+function normalizedReservedTimes(items) {
+  var seen = {};
+  return (Array.isArray(items) ? items : []).slice().sort(function (a, b) {
+    return timeToMinutes(a.inicio) - timeToMinutes(b.inicio) || timeToMinutes(a.fim) - timeToMinutes(b.fim);
+  }).filter(function (item) {
+    var key = item && item.id ? String(item.id) : [item && item.inicio, item && item.fim, item && item.nome_evento].join("|");
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function renderReservedTimesState(state, items) {
+  if (state === "loading") {
+    reservedTimesContent.className = "reserved-times-content loading";
+    reservedTimesContent.textContent = "Carregando horários reservados...";
+    return;
+  }
+  if (state === "error") {
+    reservedTimesContent.className = "reserved-times-content error";
+    reservedTimesContent.textContent = "Não foi possível carregar os horários reservados.";
+    return;
+  }
+  if (state === "initial") {
+    reservedTimesContent.className = "reserved-times-content";
+    reservedTimesContent.textContent = "Selecione uma data para consultar as reservas.";
+    return;
+  }
+
+  var reservations = normalizedReservedTimes(items);
+  reservedTimesContent.className = "reserved-times-content";
+  if (!reservations.length) {
+    reservedTimesContent.textContent = "Nenhum horário reservado nesta data.";
+    return;
+  }
+  var visible = wizardState.reservedTimesExpanded ? reservations : reservations.slice(0, 3);
+  var html = '<ul class="reserved-times-list">' + visible.map(function (item) {
+    return '<li><i aria-hidden="true"></i><span><strong>' + escapeHtml(formatTime(item.inicio) + "–" + formatTime(item.fim)) +
+      '</strong><span aria-hidden="true"> · </span>' + escapeHtml(item.nome_evento || "Evento reservado") + '</span></li>';
+  }).join("") + '</ul>';
+  if (reservations.length > 3) {
+    html += '<button type="button" class="reserved-times-toggle" data-action="toggle-reserved-times" aria-expanded="' +
+      (wizardState.reservedTimesExpanded ? "true" : "false") + '">' +
+      (wizardState.reservedTimesExpanded ? "Mostrar menos" : "Ver todas (" + reservations.length + ")") + '</button>';
+  }
+  reservedTimesContent.innerHTML = html;
+}
+
+function resetTimeSelectors(message) {
+  populateTimeSelect(horaInicioInput, "Selecione o horário", [], "", false);
+  populateTimeSelect(horaFimInput, "Selecione o início", [], "", false);
+  clearTimeOptionsAlert();
+  setTimeOptionsStatus(message || "Selecione uma data para consultar os horários.", "");
+}
+
+function legacyScheduleForCurrentDate() {
+  var legacy = wizardState.editSchedule;
+  if (!legacy || legacy.date !== dataEventoInput.value) return null;
+  var start = timeToMinutes(legacy.start);
+  var end = timeToMinutes(legacy.end);
+  if (!isIntervalAvailable(
+    start,
+    end,
+    wizardState.availabilityStart,
+    wizardState.availabilityEnd,
+    wizardState.blockedIntervals
+  )) return null;
+  return { start: start, end: end, startValue: legacy.start, endValue: legacy.end };
+}
+
+function validEndOptionsForStart(startValue) {
+  var start = timeToMinutes(startValue);
+  var options = calculateValidEndOptions(
+    start,
+    wizardState.availabilityStart,
+    wizardState.availabilityEnd,
+    wizardState.blockedIntervals,
+    INTERVALO_MINUTOS
+  );
+  var legacy = legacyScheduleForCurrentDate();
+  if (legacy && legacy.startValue === startValue) options.push(legacy.end);
+  return uniqueSortedMinutes(options);
+}
+
+function updateEndTimeOptions(selectedValue) {
+  wizardState.validEndOptions = [];
+  if (!selectedValue) {
+    populateTimeSelect(horaFimInput, "Selecione o início", [], "", false);
+    return;
+  }
+  var options = validEndOptionsForStart(selectedValue);
+  wizardState.validEndOptions = options.map(minutesToTimeLabel);
+  populateTimeSelect(horaFimInput, "Selecione o horário", options, "", options.length > 0);
+  if (!options.length) showTimeOptionsAlert("Este horário não está mais disponível. Escolha outro intervalo.");
 }
 
 function timelineMarkers(start, end) {
@@ -525,8 +971,26 @@ function validateSelectedTime() {
 
   var start = timeToMinutes(horaInicioInput.value);
   var end = timeToMinutes(horaFimInput.value);
-  if (isNaN(start) || isNaN(end)) return "Informe os horários de início e fim.";
+  if (isNaN(start) || isNaN(end)) {
+    if (Number.isFinite(start) && !wizardState.validEndOptions.length) return "Este horário não está mais disponível. Escolha outro intervalo.";
+    return "Informe os horários de início e fim.";
+  }
   if (start >= end) return "O horário de fim deve ser posterior ao horário de início.";
+
+  var crossesLunch = (wizardState.availability.bloqueios || []).some(function (block) {
+    return start < timeToMinutes(block.fim) && end > timeToMinutes(block.inicio);
+  });
+  if (crossesLunch) return "O evento não pode atravessar o horário de almoço.";
+
+  var overlaps = (wizardState.availability.ocupados || []).some(function (occupied) {
+    return start < timeToMinutes(occupied.fim) && end > timeToMinutes(occupied.inicio);
+  });
+  if (overlaps) return "O intervalo selecionado coincide com um agendamento existente.";
+
+  if (wizardState.validStartOptions.indexOf(horaInicioInput.value) === -1 ||
+      wizardState.validEndOptions.indexOf(horaFimInput.value) === -1) {
+    return "Este horário não está mais disponível. Escolha outro intervalo.";
+  }
 
   var fitsOperatingPeriod = operatingPeriods(wizardState.availability).some(function (period) {
     return start >= period.inicio && end <= period.fim;
@@ -535,14 +999,60 @@ function validateSelectedTime() {
     return "Escolha um horário entre 07:00 e 11:00 ou entre 13:00 e 20:00.";
   }
 
-  var overlaps = (wizardState.availability.ocupados || []).some(function (occupied) {
-    return start < timeToMinutes(occupied.fim) && end > timeToMinutes(occupied.inicio);
-  });
-  if (overlaps) return "O intervalo escolhido já está ocupado. Selecione outro horário.";
   return "";
 }
 
-function renderAvailability(data) {
+function validateAvailabilityIntervals(intervals) {
+  if (!Array.isArray(intervals)) return false;
+  return intervals.every(function (interval) {
+    var start = timeToMinutes(interval && interval.inicio);
+    var end = timeToMinutes(interval && interval.fim);
+    return Number.isFinite(start) && Number.isFinite(end) && start < end;
+  });
+}
+
+function applyAvailableTimeOptions(preferredSelection) {
+  var starts = calculateValidStartOptions(
+    wizardState.availabilityStart,
+    wizardState.availabilityEnd,
+    wizardState.blockedIntervals,
+    INTERVALO_MINUTOS
+  );
+  var legacy = legacyScheduleForCurrentDate();
+  if (legacy) starts.push(legacy.start);
+  starts = uniqueSortedMinutes(starts);
+  wizardState.validStartOptions = starts.map(minutesToTimeLabel);
+  wizardState.validEndOptions = [];
+
+  if (!starts.length) {
+    populateTimeSelect(horaInicioInput, "Selecione o horário", [], "", false);
+    populateTimeSelect(horaFimInput, "Selecione o início", [], "", false);
+    showTimeOptionsAlert("Não há horários disponíveis para esta data.");
+    return false;
+  }
+
+  var preferredStart = preferredSelection && preferredSelection.start;
+  var selectedStart = wizardState.validStartOptions.indexOf(preferredStart) !== -1 ? preferredStart : "";
+  populateTimeSelect(horaInicioInput, "Selecione o horário", starts, selectedStart, true);
+  if (!selectedStart) {
+    populateTimeSelect(horaFimInput, "Selecione o início", [], "", false);
+    setTimeOptionsStatus("Selecione o horário de início.", "success");
+    return true;
+  }
+
+  var endOptions = validEndOptionsForStart(selectedStart);
+  wizardState.validEndOptions = endOptions.map(minutesToTimeLabel);
+  var preferredEnd = preferredSelection && preferredSelection.end;
+  var selectedEnd = wizardState.validEndOptions.indexOf(preferredEnd) !== -1 ? preferredEnd : "";
+  populateTimeSelect(horaFimInput, "Selecione o horário", endOptions, selectedEnd, true);
+  setTimeOptionsStatus(
+    selectedEnd ? "Horários atuais carregados para edição." : "Selecione o horário de fim.",
+    "success"
+  );
+  return true;
+}
+
+function renderAvailability(data, hasAvailableTimes) {
   var dayStart = timeToMinutes(data.jornada.inicio);
   var dayEnd = timeToMinutes(data.jornada.fim);
   var duration = dayEnd - dayStart;
@@ -569,54 +1079,65 @@ function renderAvailability(data) {
   var trackHtml = '<div class="timeline-track" role="img" aria-label="Linha do tempo das ' +
     escapeHtml(formatTime(data.jornada.inicio)) + ' às ' + escapeHtml(formatTime(data.jornada.fim)) + '">';
   markers.slice(1, -1).forEach(function (marker) {
-    var position = ((marker - dayStart) / duration) * 100;
+    var position = timePositionPercent(marker, dayStart, dayEnd);
     trackHtml += '<span class="timeline-grid-line" style="left:' + position + '%" aria-hidden="true"></span>';
   });
   segments.forEach(function (segment) {
-    var left = ((timeToMinutes(segment.inicio) - dayStart) / duration) * 100;
-    var width = ((timeToMinutes(segment.fim) - timeToMinutes(segment.inicio)) / duration) * 100;
+    var left = timePositionPercent(timeToMinutes(segment.inicio), dayStart, dayEnd);
+    var right = timePositionPercent(timeToMinutes(segment.fim), dayStart, dayEnd);
+    var width = right - left;
     trackHtml += '<span class="' + segment.className + '" style="left:' + left + '%;width:' + width + '%" title="' +
       escapeHtml(segment.label + ": " + formatTime(segment.inicio) + "–" + formatTime(segment.fim)) + '"></span>';
   });
   trackHtml += '</div><div class="timeline-labels">';
   markers.forEach(function (marker) {
-    var position = ((marker - dayStart) / duration) * 100;
+    var position = timePositionPercent(marker, dayStart, dayEnd);
     trackHtml += '<span style="left:' + position + '%">' + minutesToTimeLabel(marker) + '</span>';
   });
   trackHtml += '</div>';
 
   availabilityTimeline.innerHTML = trackHtml;
   availabilityTimeline.hidden = false;
-  availabilityStatus.className = "availability-success";
-  availabilityStatus.textContent = data.ocupados.length
-    ? data.ocupados.length + (data.ocupados.length === 1 ? " reserva ocupa parte deste dia." : " reservas ocupam parte deste dia.")
-    : "Todo o expediente está livre nesta data.";
-
-  if (!data.ocupados.length) {
-    availabilityDetails.innerHTML = '<p class="availability-empty">Nenhum horário reservado.</p>';
-    return;
+  availabilityDetails.innerHTML = "";
+  renderReservedTimesState("success", data.ocupados);
+  if (!hasAvailableTimes) {
+    availabilityStatus.className = "";
+    availabilityStatus.textContent = "Não há horários disponíveis para esta data.";
+  } else {
+    availabilityStatus.className = "availability-success";
+    availabilityStatus.textContent = data.ocupados.length
+      ? data.ocupados.length + (data.ocupados.length === 1 ? " reserva ocupa parte deste dia." : " reservas ocupam parte deste dia.")
+      : "Todo o expediente está livre nesta data.";
   }
-  availabilityDetails.innerHTML = '<strong>Intervalos ocupados</strong><ul>' + data.ocupados.map(function (occupied) {
-    return '<li>' + escapeHtml(formatTime(occupied.inicio) + "–" + formatTime(occupied.fim)) + '</li>';
-  }).join("") + '</ul>';
 }
 
-async function loadAvailability() {
+async function loadAvailability(options) {
   var dateValue = dataEventoInput.value;
   if (!dateValue) {
     resetAvailability();
     return false;
   }
 
+  if (wizardState.abortController) wizardState.abortController.abort();
+  var controller = new AbortController();
   var requestId = wizardState.requestId + 1;
   wizardState.requestId = requestId;
   wizardState.loading = true;
+  wizardState.abortController = controller;
   wizardState.availability = null;
   wizardState.availabilityDate = "";
+  wizardState.availabilityStart = NaN;
+  wizardState.availabilityEnd = NaN;
+  wizardState.blockedIntervals = [];
+  wizardState.validStartOptions = [];
+  wizardState.validEndOptions = [];
+  wizardState.reservedTimesExpanded = false;
   availabilityStatus.className = "availability-loading";
   availabilityStatus.textContent = "Consultando disponibilidade...";
   availabilityTimeline.hidden = true;
   availabilityDetails.innerHTML = "";
+  resetTimeSelectors("Consultando horários disponíveis...");
+  renderReservedTimesState("loading");
   wizardNextBtn.disabled = true;
 
   var params = new URLSearchParams({ data: dateValue });
@@ -624,7 +1145,8 @@ async function loadAvailability() {
 
   try {
     var response = await fetch(API_URL + "/agendamentos/disponibilidade?" + params.toString(), {
-      headers: apiHeaders()
+      headers: apiHeaders(),
+      signal: controller.signal
     });
     if (!response.ok) {
       if (handleAuthError(response.status)) return false;
@@ -632,19 +1154,43 @@ async function loadAvailability() {
     }
     var data = await response.json();
     if (requestId !== wizardState.requestId) return false;
+    var dayStart = timeToMinutes(data && data.jornada && data.jornada.inicio);
+    var dayEnd = timeToMinutes(data && data.jornada && data.jornada.fim);
+    if (!Number.isFinite(dayStart) || !Number.isFinite(dayEnd) || dayStart >= dayEnd ||
+        !validateAvailabilityIntervals(data.bloqueios) || !validateAvailabilityIntervals(data.ocupados)) {
+      throw new Error("Resposta de disponibilidade inválida.");
+    }
     wizardState.availability = data;
     wizardState.availabilityDate = dateValue;
-    renderAvailability(data);
+    wizardState.availabilityStart = dayStart;
+    wizardState.availabilityEnd = dayEnd;
+    wizardState.blockedIntervals = normalizeIntervals(
+      data.bloqueios.concat(data.ocupados),
+      dayStart,
+      dayEnd
+    );
+    var preferredSelection = options && options.preserveEditSelection
+      ? wizardState.pendingEditSelection
+      : null;
+    var hasAvailableTimes = applyAvailableTimeOptions(preferredSelection);
+    if (preferredSelection) wizardState.pendingEditSelection = null;
+    renderAvailability(data, hasAvailableTimes);
     return true;
   } catch (err) {
     if (requestId !== wizardState.requestId) return false;
+    if (err && err.name === "AbortError") return false;
     availabilityStatus.className = "availability-error";
-    availabilityStatus.textContent = err.message;
+    availabilityStatus.textContent = "Não foi possível consultar os horários. Tente novamente.";
     availabilityDetails.innerHTML = '<button type="button" class="btn btn-outline btn-small" data-action="retry-availability">Tentar novamente</button>';
+    resetTimeSelectors("Não foi possível consultar os horários. Tente novamente.");
+    setTimeOptionsStatus("Não foi possível consultar os horários. Tente novamente.", "error");
+    showTimeOptionsAlert("Não foi possível confirmar a disponibilidade. Tente novamente.");
+    renderReservedTimesState("error");
     return false;
   } finally {
     if (requestId === wizardState.requestId) {
       wizardState.loading = false;
+      wizardState.abortController = null;
       wizardNextBtn.disabled = false;
     }
   }
@@ -674,11 +1220,13 @@ async function advanceWizard() {
   if (wizardState.step === 1) {
     if (!dataEventoInput.value) {
       showFeedback(agendamentoFeedback, "Selecione a data do evento.", "error");
-      dataEventoInput.focus();
+      datePickerTrigger.focus();
       return;
     }
     if (!wizardState.availability || wizardState.availabilityDate !== dataEventoInput.value) {
-      var loaded = await loadAvailability();
+      var loaded = await loadAvailability({
+        preserveEditSelection: Boolean(wizardState.pendingEditSelection)
+      });
       if (!loaded) {
         showFeedback(agendamentoFeedback, "Consulte a disponibilidade antes de continuar.", "error");
         return;
@@ -692,7 +1240,7 @@ async function advanceWizard() {
   if (wizardState.step === 2) {
     var scheduleError = validateSelectedTime();
     if (scheduleError) {
-      showFeedback(agendamentoFeedback, scheduleError, "error");
+      showTimeOptionsAlert(scheduleError);
       horaInicioInput.focus();
       return;
     }
@@ -712,16 +1260,23 @@ function openEditForm(id) {
   editingId.value = item.id;
   nomeEventoInput.value = item.nome_evento || "";
   dataEventoInput.value = item.data_evento || "";
-  horaInicioInput.value = item.hora_inicio ? item.hora_inicio.substring(0, 5) : "";
-  horaFimInput.value = item.hora_fim ? item.hora_fim.substring(0, 5) : "";
+  updateDatePickerDisplay();
+  var editStart = item.hora_inicio ? item.hora_inicio.substring(0, 5) : "";
+  var editEnd = item.hora_fim ? item.hora_fim.substring(0, 5) : "";
+  wizardState.editSchedule = {
+    date: item.data_evento || "",
+    start: editStart,
+    end: editEnd
+  };
+  wizardState.pendingEditSelection = { start: editStart, end: editEnd };
   participantesInput.value = item.quantidade_participantes == null ? "" : item.quantidade_participantes;
   observacoesInput.value = item.observacoes || "";
   formTitle.textContent = "Editar Agendamento";
   agendamentoBtn.textContent = "Salvar Alterações";
   showView("view-novo-agendamento");
   setWizardStep(1, false);
-  loadAvailability();
-  dataEventoInput.focus();
+  loadAvailability({ preserveEditSelection: true });
+  datePickerTrigger.focus();
 }
 
 function showModal(title, message, buttons) {
@@ -816,6 +1371,10 @@ logoutBtn.addEventListener("click", function () {
   showLogin();
 });
 
+themeToggle.addEventListener("click", function () {
+  applyTheme(currentTheme() === "dark" ? "light" : "dark", true);
+});
+
 novoAgendamentoBtn.addEventListener("click", openFormForCreate);
 
 voltarAgendamentosBtn.addEventListener("click", function () {
@@ -826,11 +1385,71 @@ cancelEditBtn.addEventListener("click", function () {
   returnToList(true);
 });
 
+datePickerTrigger.addEventListener("click", function () {
+  if (datePickerPopover.hidden) openCalendar();
+  else closeCalendar(true);
+});
+
+calendarPrevious.addEventListener("click", function () {
+  showCalendarDate(addMonthsToIso(calendarState.focusedDate, -1), true);
+});
+
+calendarNext.addEventListener("click", function () {
+  showCalendarDate(addMonthsToIso(calendarState.focusedDate, 1), true);
+});
+
+calendarToday.addEventListener("click", function () {
+  showCalendarDate(todayIso(), true);
+});
+
+calendarGrid.addEventListener("click", function (event) {
+  var day = event.target.closest("[data-calendar-date]");
+  if (day) selectEventDate(day.dataset.calendarDate);
+});
+
+calendarGrid.addEventListener("keydown", function (event) {
+  var day = event.target.closest("[data-calendar-date]");
+  if (!day) return;
+  var nextDate = "";
+  if (event.key === "ArrowLeft") nextDate = addDaysToIso(day.dataset.calendarDate, -1);
+  if (event.key === "ArrowRight") nextDate = addDaysToIso(day.dataset.calendarDate, 1);
+  if (event.key === "ArrowUp") nextDate = addDaysToIso(day.dataset.calendarDate, -7);
+  if (event.key === "ArrowDown") nextDate = addDaysToIso(day.dataset.calendarDate, 7);
+  if (event.key === "PageUp") nextDate = addMonthsToIso(day.dataset.calendarDate, -1);
+  if (event.key === "PageDown") nextDate = addMonthsToIso(day.dataset.calendarDate, 1);
+  if (!nextDate) return;
+  event.preventDefault();
+  showCalendarDate(nextDate, true);
+});
+
 dataEventoInput.addEventListener("change", function () {
-  horaInicioInput.value = "";
-  horaFimInput.value = "";
+  updateDatePickerDisplay();
+  closeCalendar(false);
+  wizardState.pendingEditSelection = null;
+  wizardState.reservedTimesExpanded = false;
+  if (wizardState.editSchedule && wizardState.editSchedule.date !== dataEventoInput.value) {
+    wizardState.editSchedule = null;
+  }
+  resetTimeSelectors(dataEventoInput.value ? "Consultando horários disponíveis..." : "Selecione uma data para consultar os horários.");
+  renderReservedTimesState(dataEventoInput.value ? "loading" : "initial");
   hideFeedback(agendamentoFeedback);
   loadAvailability();
+});
+
+horaInicioInput.addEventListener("change", function () {
+  updateEndTimeOptions(horaInicioInput.value);
+  if (!horaInicioInput.value) setTimeOptionsStatus("Selecione o horário de início.", "");
+  else if (wizardState.validEndOptions.length) setTimeOptionsStatus("Selecione o horário de fim.", "success");
+});
+
+horaFimInput.addEventListener("change", function () {
+  if (!horaFimInput.value) {
+    setTimeOptionsStatus("Selecione o horário de fim.", "");
+    return;
+  }
+  var error = validateSelectedTime();
+  if (error) showTimeOptionsAlert(error);
+  else setTimeOptionsStatus("Intervalo disponível selecionado.", "success");
 });
 
 wizardNextBtn.addEventListener("click", advanceWizard);
@@ -851,6 +1470,7 @@ agendamentoForm.addEventListener("submit", async function (event) {
   var scheduleError = validateSelectedTime();
   if (scheduleError) {
     setWizardStep(2, true);
+    showTimeOptionsAlert(scheduleError);
     showFeedback(agendamentoFeedback, scheduleError, "error");
     return;
   }
@@ -876,13 +1496,16 @@ agendamentoForm.addEventListener("submit", async function (event) {
       if (response.status === 409 && apiError.code === "schedule_conflict") {
         horaInicioInput.value = "";
         horaFimInput.value = "";
+        wizardState.pendingEditSelection = null;
         await loadAvailability();
         setWizardStep(2, true);
+        showTimeOptionsAlert("Este horário não está mais disponível. Escolha outro intervalo.");
         showFeedback(agendamentoFeedback, apiError.message, "error");
         return;
       }
       if (response.status === 400 && apiError.code === "invalid_schedule_window") {
         setWizardStep(2, true);
+        showTimeOptionsAlert(apiError.message || "Não foi possível confirmar a disponibilidade. Tente novamente.");
         showFeedback(agendamentoFeedback, apiError.message, "error");
         return;
       }
@@ -912,7 +1535,16 @@ scheduleSection.addEventListener("click", function (event) {
 
 availabilityDetails.addEventListener("click", function (event) {
   var button = event.target.closest('[data-action="retry-availability"]');
-  if (button) loadAvailability();
+  if (button) loadAvailability({
+    preserveEditSelection: Boolean(wizardState.pendingEditSelection)
+  });
+});
+
+reservedTimesContent.addEventListener("click", function (event) {
+  var button = event.target.closest('[data-action="toggle-reserved-times"]');
+  if (!button || !wizardState.availability) return;
+  wizardState.reservedTimesExpanded = !wizardState.reservedTimesExpanded;
+  renderReservedTimesState("success", wizardState.availability.ocupados);
 });
 
 buscaInput.addEventListener("input", renderAgendamentos);
@@ -922,6 +1554,10 @@ modalOverlay.addEventListener("click", function (event) {
 });
 
 document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape" && !datePickerPopover.hidden) {
+    closeCalendar(true);
+    return;
+  }
   if (event.key === "Escape" && modalOverlay.classList.contains("active")) {
     hideModal();
     return;
@@ -941,7 +1577,13 @@ document.addEventListener("keydown", function (event) {
   }
 });
 
+document.addEventListener("pointerdown", function (event) {
+  if (!datePickerPopover.hidden && !datePicker.contains(event.target)) closeCalendar(false);
+});
+
 (function init() {
+  updateThemeControl();
+  updateDatePickerDisplay();
   if (getToken()) showDashboard();
   else showLogin();
 })();
