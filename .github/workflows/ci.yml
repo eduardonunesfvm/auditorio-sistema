@@ -91,9 +91,9 @@ jobs:
         working-directory: auditorio-front
         run: npm ci
 
-      - name: Instalar Chromium
+      - name: Instalar navegadores
         working-directory: auditorio-front
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chrome msedge firefox
 
       - name: Rodar testes do wizard
         working-directory: auditorio-front

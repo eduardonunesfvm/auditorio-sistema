@@ -298,6 +298,53 @@ class TestAgendamentosCriar:
             "message": "O horário selecionado não está mais disponível.",
         }
 
+    @pytest.mark.parametrize(
+        ("inicio", "fim"),
+        [
+            ("13:30", "14:30"),
+            ("15:30", "16:30"),
+            ("14:30", "15:30"),
+            ("13:30", "16:30"),
+            ("14:00", "16:00"),
+        ],
+    )
+    def test_rejeita_sobreposicao_parcial_total_ou_contida(
+        self,
+        client,
+        db_session,
+        inicio,
+        fim,
+    ):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+        headers = _auth_headers(token)
+        existente = {
+            "nome_evento": "Evento existente",
+            "data_evento": "2026-12-16",
+            "hora_inicio": "14:00",
+            "hora_fim": "16:00",
+        }
+        candidato = {
+            "nome_evento": "Evento conflitante",
+            "data_evento": "2026-12-16",
+            "hora_inicio": inicio,
+            "hora_fim": fim,
+        }
+
+        assert client.post(
+            "/agendamentos/criar_agendamento",
+            json=existente,
+            headers=headers,
+        ).status_code == 201
+        resposta = client.post(
+            "/agendamentos/criar_agendamento",
+            json=candidato,
+            headers=headers,
+        )
+
+        assert resposta.status_code == 409
+        assert resposta.json()["detail"]["code"] == "schedule_conflict"
+
     def test_criar_agendamento_sem_conflito_mesmo_dia(self, client, db_session):
         _criar_usuario(db_session)
         token = _obter_token(client)
@@ -341,6 +388,38 @@ class TestAgendamentosCriar:
 
         assert res.status_code == 400
         assert res.json()["detail"]["code"] == "invalid_schedule_window"
+
+    @pytest.mark.parametrize(
+        ("campo", "valor"),
+        [
+            ("hora_inicio", "horário-inválido"),
+            ("hora_fim", "25:00"),
+        ],
+    )
+    def test_criar_agendamento_rejeita_horario_malformado(
+        self,
+        client,
+        db_session,
+        campo,
+        valor,
+    ):
+        _criar_usuario(db_session)
+        token = _obter_token(client)
+        payload = {
+            "nome_evento": "Evento com horário inválido",
+            "data_evento": "2026-12-15",
+            "hora_inicio": "14:00",
+            "hora_fim": "15:00",
+        }
+        payload[campo] = valor
+
+        resposta = client.post(
+            "/agendamentos/criar_agendamento",
+            json=payload,
+            headers=_auth_headers(token),
+        )
+
+        assert resposta.status_code == 422
 
     def test_criar_agendamento_sem_token(self, client):
         payload = {
@@ -815,6 +894,7 @@ class TestDisponibilidade:
         token = _obter_token(client)
         headers = _auth_headers(token)
 
+        criados = {}
         for nome, inicio, fim in [
             ("Evento da tarde", "14:00", "15:00"),
             ("Evento da manhã", "07:00", "08:00"),
@@ -831,6 +911,7 @@ class TestDisponibilidade:
                 headers=headers,
             )
             assert res.status_code == 201, res.text
+            criados[nome] = res.json()["id"]
 
         res = client.get(
             "/agendamentos/disponibilidade?data=2027-02-20",
@@ -846,8 +927,18 @@ class TestDisponibilidade:
                 {"inicio": "11:00", "fim": "13:00", "tipo": "almoco"}
             ],
             "ocupados": [
-                {"inicio": "07:00", "fim": "08:00"},
-                {"inicio": "14:00", "fim": "15:00"},
+                {
+                    "id": criados["Evento da manhã"],
+                    "nome_evento": "Evento da manhã",
+                    "inicio": "07:00",
+                    "fim": "08:00",
+                },
+                {
+                    "id": criados["Evento da tarde"],
+                    "nome_evento": "Evento da tarde",
+                    "inicio": "14:00",
+                    "fim": "15:00",
+                },
             ],
         }
 

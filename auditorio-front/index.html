@@ -5,7 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Sistema do Auditório</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="stylesheet" href="styles.css?v=5">
+  <script>
+    (function () {
+      var theme = "";
+      try { theme = localStorage.getItem("auditorio_theme") || ""; } catch (error) {}
+      if (theme !== "light" && theme !== "dark") {
+        theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
   <div id="login-screen" class="screen active">
@@ -47,10 +57,16 @@
             <small>Controle de Agendamentos</small>
           </span>
         </div>
-        <button type="button" class="btn btn-ghost" id="logout-btn">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg>
-          Sair
-        </button>
+        <div class="topbar-actions">
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Ativar modo escuro" title="Ativar modo escuro">
+            <svg class="icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.4 15.4A9 9 0 0 1 8.6 3.6 9 9 0 1 0 20.4 15.4z"/></svg>
+            <svg class="icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+          </button>
+          <button type="button" class="btn btn-ghost" id="logout-btn">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg>
+            Sair
+          </button>
+        </div>
       </div>
     </header>
 
@@ -146,24 +162,48 @@
                 </div>
 
                 <div class="form-group date-field">
-                  <label for="data-evento">Data <span aria-hidden="true">*</span></label>
-                  <input type="date" id="data-evento" name="data_evento" required>
+                  <label for="date-picker-trigger">Data <span aria-hidden="true">*</span></label>
+                  <input type="date" id="data-evento" name="data_evento" class="date-native-input sr-only" tabindex="-1" aria-hidden="true" required>
+                  <div class="date-picker" id="date-picker">
+                    <button type="button" id="date-picker-trigger" class="date-picker-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="date-picker-popover">
+                      <span id="date-picker-display" class="date-picker-placeholder">Selecione uma data</span>
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2z"/></svg>
+                    </button>
+                    <div id="date-picker-popover" class="date-picker-popover" role="dialog" aria-modal="false" aria-labelledby="calendar-month-label" hidden>
+                      <div class="calendar-toolbar">
+                        <button type="button" class="calendar-nav" id="calendar-previous" aria-label="Mês anterior">
+                          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                        </button>
+                        <strong id="calendar-month-label"></strong>
+                        <button type="button" class="calendar-nav" id="calendar-next" aria-label="Próximo mês">
+                          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                        </button>
+                      </div>
+                      <button type="button" class="calendar-today" id="calendar-today">Hoje</button>
+                      <div class="calendar-weekdays" aria-hidden="true">
+                        <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+                      </div>
+                      <div id="calendar-grid" class="calendar-grid" role="grid" aria-labelledby="calendar-month-label"></div>
+                    </div>
+                  </div>
                 </div>
 
                 <section class="availability-panel" aria-labelledby="availability-title">
-                  <div class="availability-heading">
-                    <div>
-                      <h3 id="availability-title">Disponibilidade do auditório</h3>
-                      <p id="availability-status" role="status" aria-live="polite">Selecione uma data para consultar os horários.</p>
+                  <div class="availability-axis">
+                    <div class="availability-heading">
+                      <div>
+                        <h3 id="availability-title">Disponibilidade do auditório</h3>
+                        <p id="availability-status" role="status" aria-live="polite">Selecione uma data para consultar os horários.</p>
+                      </div>
+                      <div class="timeline-legend" aria-label="Legenda">
+                        <span><i class="legend-free"></i>Livre</span>
+                        <span><i class="legend-occupied"></i>Ocupado</span>
+                        <span><i class="legend-lunch"></i>Almoço</span>
+                      </div>
                     </div>
-                    <div class="timeline-legend" aria-label="Legenda">
-                      <span><i class="legend-free"></i>Livre</span>
-                      <span><i class="legend-occupied"></i>Ocupado</span>
-                      <span><i class="legend-lunch"></i>Almoço</span>
-                    </div>
+                    <div id="availability-timeline" class="availability-timeline" hidden></div>
+                    <div id="availability-details" class="availability-details"></div>
                   </div>
-                  <div id="availability-timeline" class="availability-timeline" hidden></div>
-                  <div id="availability-details" class="availability-details"></div>
                 </section>
               </section>
 
@@ -179,16 +219,28 @@
                   Eventos não podem atravessar a pausa para almoço.
                 </div>
 
-                <div class="form-grid">
+                <div class="form-grid time-fields">
                   <div class="form-group">
                     <label for="hora-inicio">Horário de Início <span aria-hidden="true">*</span></label>
-                    <input type="time" id="hora-inicio" name="hora_inicio" step="60" required>
+                    <select id="hora-inicio" name="hora_inicio" aria-describedby="time-options-status time-options-alert" required disabled>
+                      <option value="">Selecione o horário</option>
+                    </select>
                   </div>
+                  <span class="time-range-separator" aria-hidden="true">até</span>
                   <div class="form-group">
                     <label for="hora-fim">Horário de Fim <span aria-hidden="true">*</span></label>
-                    <input type="time" id="hora-fim" name="hora_fim" step="60" required>
+                    <select id="hora-fim" name="hora_fim" aria-describedby="time-options-status time-options-alert" required disabled>
+                      <option value="">Selecione o início</option>
+                    </select>
                   </div>
                 </div>
+                <p id="time-options-status" class="time-options-status" role="status" aria-live="polite">Selecione uma data para consultar os horários.</p>
+                <div id="time-options-alert" class="time-options-alert" role="alert" hidden></div>
+
+                <section class="reserved-times" aria-labelledby="reserved-times-title">
+                  <h3 id="reserved-times-title">Horários já reservados</h3>
+                  <div id="reserved-times-content" class="reserved-times-content" role="status" aria-live="polite">Selecione uma data para consultar as reservas.</div>
+                </section>
               </section>
 
               <section class="wizard-step" data-wizard-step="3" aria-labelledby="wizard-step-3-title" hidden>
@@ -249,6 +301,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
