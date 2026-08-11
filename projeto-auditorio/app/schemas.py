@@ -81,9 +81,14 @@ class BloqueioHorarioResponse(IntervaloHorarioResponse):
     tipo: Literal["almoco"]
 
 
+class ReservaOcupadaResponse(IntervaloHorarioResponse):
+    id: UUID
+    nome_evento: str
+
+
 class DisponibilidadeResponse(BaseModel):
     data: date
     timezone: str
     jornada: JornadaResponse
     bloqueios: list[BloqueioHorarioResponse]
-    ocupados: list[IntervaloHorarioResponse]
+    ocupados: list[ReservaOcupadaResponse]

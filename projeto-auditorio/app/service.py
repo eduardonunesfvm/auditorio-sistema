@@ -98,6 +98,8 @@ class AgendamentoService:
             ],
             "ocupados": [
                 {
+                    "id": item.id,
+                    "nome_evento": item.nome_evento,
                     "inicio": format_schedule_time(item.hora_inicio),
                     "fim": format_schedule_time(item.hora_fim),
                 }
