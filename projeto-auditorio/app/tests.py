@@ -1,11 +1,14 @@
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
+from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.main import app
 from app.database import get_db
+from app.login_rate_limit import login_rate_limiter
 from app.models import Base, Usuario, UserRole
 from app.security import gerar_senha_hash
 
@@ -82,7 +85,50 @@ def _auth_headers(token):
     return {"Authorization": f"Bearer {token}"}
 
 
+class FakeRateLimitRedis:
+    def __init__(self):
+        self.counts = {}
+
+    def eval(self, script, number_of_keys, *args):
+        keys = args[:number_of_keys]
+        ip_max, ip_window, login_max, login_window = map(
+            int, args[number_of_keys:]
+        )
+        limits = (ip_max, login_max)
+        windows = (ip_window, login_window)
+        for key, maximum, window in zip(keys, limits, windows):
+            if self.counts.get(key, 0) >= maximum:
+                return [0, window]
+        for key in keys:
+            self.counts[key] = self.counts.get(key, 0) + 1
+        return [1, 0]
+
+
+class UnavailableRateLimitRedis:
+    def eval(self, *args):
+        raise RedisConnectionError("Redis indisponivel para teste")
+
+
 class TestAuth:
+    def test_ip_encaminhado_so_e_aceito_de_proxy_privado(self):
+        proxy_request = Request(
+            {
+                "type": "http",
+                "client": ("10.0.0.8", 12345),
+                "headers": [(b"x-forwarded-for", b"198.51.100.25, 10.0.0.8")],
+            }
+        )
+        direct_request = Request(
+            {
+                "type": "http",
+                "client": ("8.8.8.8", 12345),
+                "headers": [(b"x-forwarded-for", b"198.51.100.25")],
+            }
+        )
+
+        assert login_rate_limiter._client_ip(proxy_request) == "198.51.100.25"
+        assert login_rate_limiter._client_ip(direct_request) == "8.8.8.8"
+
     def test_login_sucesso(self, client, db_session):
         _criar_usuario(db_session)
 
@@ -110,6 +156,70 @@ class TestAuth:
         res = client.post("/auth/login", json={"login": "", "senha": ""})
 
         assert res.status_code == 401
+
+    def test_rate_limit_por_login_retorna_429_e_retry_after(
+        self, client, db_session, monkeypatch
+    ):
+        _criar_usuario(db_session)
+        fake_redis = FakeRateLimitRedis()
+        monkeypatch.setattr(login_rate_limiter, "redis", fake_redis)
+
+        for index in range(5):
+            res = client.post(
+                "/auth/login",
+                json={"login": " ADMIN ", "senha": "senha-errada"},
+                headers={"X-Forwarded-For": f"198.51.100.{index + 1}"},
+            )
+            assert res.status_code == 401
+
+        bloqueado = client.post(
+            "/auth/login",
+            json={"login": "admin", "senha": "senha-errada"},
+            headers={"X-Forwarded-For": "198.51.100.99"},
+        )
+
+        assert bloqueado.status_code == 429
+        assert bloqueado.headers["Retry-After"] == "900"
+        assert bloqueado.json()["detail"].startswith("Muitas tentativas")
+
+    def test_rate_limit_por_ip_separa_logins(
+        self, client, monkeypatch
+    ):
+        fake_redis = FakeRateLimitRedis()
+        monkeypatch.setattr(login_rate_limiter, "redis", fake_redis)
+
+        for index in range(10):
+            res = client.post(
+                "/auth/login",
+                json={"login": f"usuario-{index}", "senha": "incorreta"},
+                headers={"X-Forwarded-For": "203.0.113.10"},
+            )
+            assert res.status_code == 401
+
+        bloqueado = client.post(
+            "/auth/login",
+            json={"login": "outro-usuario", "senha": "incorreta"},
+            headers={"X-Forwarded-For": "203.0.113.10"},
+        )
+
+        assert bloqueado.status_code == 429
+        assert bloqueado.headers["Retry-After"] == "60"
+
+    def test_redis_indisponivel_permite_login_e_registra_erro(
+        self, client, db_session, monkeypatch, caplog
+    ):
+        _criar_usuario(db_session)
+        monkeypatch.setattr(
+            login_rate_limiter, "redis", UnavailableRateLimitRedis()
+        )
+
+        with caplog.at_level("ERROR"):
+            res = client.post(
+                "/auth/login", json={"login": "admin", "senha": "123456"}
+            )
+
+        assert res.status_code == 200
+        assert "permitindo tentativa de login" in caplog.text
 
 
 class TestAgendamentosCriar:

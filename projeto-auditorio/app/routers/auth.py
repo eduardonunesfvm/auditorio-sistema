@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 from ..schemas import LoginRequest, TokenResponse
 from ..service import AuthService
 from ..repository import UsuarioRepository
 
 from ..database import get_db
+from ..login_rate_limit import login_rate_limiter
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
+    login_rate_limiter.check(request, payload.login)
     repo = UsuarioRepository(db)
     service = AuthService(repo)
     
