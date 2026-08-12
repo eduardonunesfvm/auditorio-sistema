@@ -8,6 +8,8 @@ from fastapi import HTTPException, Request, status
 from redis import Redis
 from redis.exceptions import RedisError
 
+from app.observability import domain_metrics
+
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +89,14 @@ class LoginRateLimiter:
                 self.login_limit.window_seconds,
             )
         except RedisError:
+            domain_metrics.auth_rate_limiter_fail_open()
             logger.exception(
                 "Redis indisponivel; permitindo tentativa de login sem rate limit."
             )
             return
 
         if not allowed:
+            domain_metrics.auth_rate_limited()
             retry_after = max(1, int(retry_after))
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
