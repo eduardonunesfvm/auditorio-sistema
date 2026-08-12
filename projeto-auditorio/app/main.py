@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -5,11 +7,19 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import os
 
-from app.database import get_db
+from app.database import engine, get_db
+from app.observability import setup_observability
 from app.routers import auth, agendamentos
 
 ENV = os.getenv("ENV", "development")
 _docs_enabled = ENV != "production"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    app.state.observability.shutdown()
+
 
 app = FastAPI(
     title="Sistema do Auditório",
@@ -18,6 +28,7 @@ app = FastAPI(
     docs_url="/docs" if _docs_enabled else None,
     redoc_url=None,
     openapi_url="/openapi.json" if _docs_enabled else None,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -30,6 +41,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(agendamentos.router)
+app.state.observability = setup_observability(app, engine)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Monitoramento"])
