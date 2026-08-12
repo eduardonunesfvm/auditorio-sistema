@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import DBAPIError
 
 from app.models import Agendamento, Usuario, UserRole
+from app.observability import domain_metrics
 from app.repository import AgendamentoRepository, UsuarioRepository
 from app.schemas import AgendamentoCreate, AgendamentoUpdate, UsuarioCreate
 from app.scheduling import (
@@ -47,7 +48,9 @@ class AgendamentoService:
             usuario_id=usuario_id,
         )
         try:
-            return self.repo.criar(agendamento)
+            resultado = self.repo.criar(agendamento)
+            domain_metrics.reservation_created()
+            return resultado
         except DBAPIError as exc:
             self.repo.rollback()
             if self._is_schedule_conflict(exc):
@@ -141,7 +144,9 @@ class AgendamentoService:
             self._raise_schedule_conflict()
 
         try:
-            return self.repo.atualizar(agendamento, dados)
+            resultado = self.repo.atualizar(agendamento, dados)
+            domain_metrics.reservation_updated()
+            return resultado
         except DBAPIError as exc:
             self.repo.rollback()
             if self._is_schedule_conflict(exc):
@@ -158,10 +163,12 @@ class AgendamentoService:
                 detail="Acesso negado para excluir este agendamento.",
             )
         self.repo.deletar(agendamento)
+        domain_metrics.reservation_deleted()
 
     @staticmethod
     def _validar_janela(hora_inicio, hora_fim) -> None:
         if not is_valid_schedule_window(hora_inicio, hora_fim):
+            domain_metrics.invalid_schedule_window()
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -175,6 +182,7 @@ class AgendamentoService:
 
     @staticmethod
     def _raise_schedule_conflict() -> None:
+        domain_metrics.scheduling_conflict()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
