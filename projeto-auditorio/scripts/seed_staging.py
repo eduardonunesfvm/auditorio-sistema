@@ -2,8 +2,14 @@
 
 import argparse
 import os
+import sys
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.database import SessionLocal
 from app.models import Agendamento, Usuario, UserRole
