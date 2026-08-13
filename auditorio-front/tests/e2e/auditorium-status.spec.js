@@ -59,7 +59,7 @@ test("mostra evento ativo, progresso acessível e transiciona no fim sem nova re
   ];
   const state = await loginAt(page, "2026-08-14T13:59:59.000Z", events);
 
-  await expect(page.getByText("EM ANDAMENTO", { exact: true })).toBeVisible();
+  await expect(page.getByText("EM ANDAMENTO", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Reunião em andamento", { exact: true }).first()).toBeVisible();
   const progress = page.getByRole("progressbar", { name: "Progresso do evento" });
   await expect(progress).toHaveAttribute("aria-valuenow", "99");
@@ -85,7 +85,7 @@ test("evento contíguo aparece imediatamente e retorno à aba reavalia o estado"
   await loginAt(page, "2026-08-14T13:59:59.000Z", events);
   await page.clock.fastForward(1000);
   await expect(page.getByText("Segundo evento", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("EM ANDAMENTO", { exact: true })).toBeVisible();
+  await expect(page.getByText("EM ANDAMENTO", { exact: true }).first()).toBeVisible();
 
   await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, value: false });

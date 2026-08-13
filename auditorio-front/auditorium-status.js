@@ -87,6 +87,50 @@
     };
   }
 
+  function stableAppointmentId(interval) {
+    return String(interval && interval.appointment && interval.appointment.id || "");
+  }
+
+  function appointmentListStatus(interval, nowValue) {
+    var now = nowValue instanceof Date ? nowValue.getTime() : Number(nowValue);
+    if (!interval || !interval.valid || !Number.isFinite(now)) return null;
+    if (interval.end <= now) return "FINALIZADO";
+    if (interval.start <= now) return "EM_ANDAMENTO";
+    return formatAuditoriumDate(interval.start) === formatAuditoriumDate(now) ? "HOJE" : "AGENDADO";
+  }
+
+  function partitionAppointments(appointments, nowValue) {
+    var now = nowValue instanceof Date ? nowValue.getTime() : Number(nowValue);
+    if (!Number.isFinite(now)) now = Date.now();
+    var intervals = (Array.isArray(appointments) ? appointments : [])
+      .map(buildAppointmentInterval)
+      .filter(function (interval) { return interval.valid; });
+    var upcoming = intervals.filter(function (interval) { return interval.end > now; });
+    var history = intervals.filter(function (interval) { return interval.end <= now; });
+
+    upcoming.sort(function (left, right) {
+      var leftCurrent = left.start <= now && now < left.end;
+      var rightCurrent = right.start <= now && now < right.end;
+      if (leftCurrent !== rightCurrent) return leftCurrent ? -1 : 1;
+      if (leftCurrent) return right.start - left.start || left.end - right.end || stableAppointmentId(left).localeCompare(stableAppointmentId(right));
+      return left.start - right.start || left.end - right.end || stableAppointmentId(left).localeCompare(stableAppointmentId(right));
+    });
+    history.sort(function (left, right) {
+      return right.end - left.end || right.start - left.start || stableAppointmentId(left).localeCompare(stableAppointmentId(right));
+    });
+
+    return {
+      now: now,
+      upcoming: upcoming.map(function (interval) {
+        return { appointment: interval.appointment, interval: interval, status: appointmentListStatus(interval, now) };
+      }),
+      history: history.map(function (interval) {
+        return { appointment: interval.appointment, interval: interval, status: "FINALIZADO" };
+      }),
+      invalidCount: (Array.isArray(appointments) ? appointments.length : 0) - intervals.length
+    };
+  }
+
   function classifyAppointments(appointments, nowValue) {
     var now = nowValue instanceof Date ? nowValue.getTime() : Number(nowValue);
     if (!Number.isFinite(now)) now = Date.now();
@@ -192,6 +236,8 @@
     SAFETY_INTERVAL_MS: SAFETY_INTERVAL_MS,
     auditoriumWallTimeToTimestamp: auditoriumWallTimeToTimestamp,
     buildAppointmentInterval: buildAppointmentInterval,
+    appointmentListStatus: appointmentListStatus,
+    partitionAppointments: partitionAppointments,
     classifyAppointments: classifyAppointments,
     calculateEventProgress: calculateEventProgress,
     formatRemainingTime: formatRemainingTime,
