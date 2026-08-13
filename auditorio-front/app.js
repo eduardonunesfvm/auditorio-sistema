@@ -25,6 +25,10 @@ var tableView = document.getElementById("schedule-table-view");
 var cardsView = document.getElementById("schedule-cards-view");
 var listState = document.getElementById("list-state");
 var scheduleSection = document.querySelector(".schedule-section");
+var scheduleTitle = document.getElementById("schedule-title");
+var scheduleDescription = document.getElementById("schedule-description");
+var scheduleViewToggle = document.getElementById("schedule-view-toggle");
+var scheduleViewLive = document.getElementById("schedule-view-live");
 var buscaInput = document.getElementById("busca-agendamentos");
 var novoAgendamentoBtn = document.getElementById("novo-agendamento-btn");
 var voltarAgendamentosBtn = document.getElementById("voltar-agendamentos-btn");
@@ -72,6 +76,14 @@ var reportedOverlapKeys = {};
 var navigationOrigin = null;
 var operationStatusTimer = null;
 var lastModalFocus = null;
+var LIST_VIEW = { UPCOMING: "upcoming", HISTORY: "history" };
+var appointmentsListState = {
+  view: LIST_VIEW.UPCOMING,
+  searchUpcoming: "",
+  searchHistory: "",
+  temporalSignature: "",
+  loadFailed: false
+};
 var wizardState = {
   step: 1,
   availability: null,
@@ -96,7 +108,7 @@ var calendarState = {
 };
 var memoryStorage = {};
 var statusTimerController = AuditoriumStatus.createStatusTimerController({
-  onTick: function () { refreshAuditoriumStatus(); }
+  onTick: function () { refreshTemporalViews(false); }
 });
 
 var ICONS = {
@@ -527,6 +539,7 @@ function handleAuthError(statusCode) {
   clearSession();
   agendamentosCache = [];
   hasLoadedAgendamentos = false;
+  resetAppointmentsListState();
   showLogin();
   return true;
 }
@@ -663,14 +676,14 @@ function reportOverlaps(status) {
   console.warn("Foram encontrados agendamentos simultâneos. O card exibirá o evento de início mais recente.", status.overlaps.map(function (item) { return item.appointment.id; }));
 }
 
-function refreshAuditoriumStatus() {
+function refreshAuditoriumStatus(status) {
   if (!hasLoadedAgendamentos) return;
-  var status = AuditoriumStatus.classifyAppointments(agendamentosCache, Date.now());
-  announceStatusTransition(status);
-  reportOverlaps(status);
-  renderAuditoriumStatus(status);
-  previousAuditoriumStatus = status;
-  statusTimerController.start(AuditoriumStatus.getNextBoundary(status));
+  var currentStatus = status || AuditoriumStatus.classifyAppointments(agendamentosCache, Date.now());
+  announceStatusTransition(currentStatus);
+  reportOverlaps(currentStatus);
+  renderAuditoriumStatus(currentStatus);
+  previousAuditoriumStatus = currentStatus;
+  statusTimerController.start(AuditoriumStatus.getNextBoundary(currentStatus));
 }
 
 function clearAuditoriumStatus() {
@@ -683,6 +696,61 @@ function clearAuditoriumStatus() {
   auditoriumStatusFeedback.hidden = true;
   auditoriumStatusFeedback.innerHTML = "";
   auditoriumStatusLive.textContent = "";
+}
+
+function resetAppointmentsListState() {
+  appointmentsListState.view = LIST_VIEW.UPCOMING;
+  appointmentsListState.searchUpcoming = "";
+  appointmentsListState.searchHistory = "";
+  appointmentsListState.temporalSignature = "";
+  appointmentsListState.loadFailed = false;
+  buscaInput.value = "";
+  updateScheduleHeading();
+}
+
+function searchKeyForView(view) {
+  return view === LIST_VIEW.HISTORY ? "searchHistory" : "searchUpcoming";
+}
+
+function updateScheduleHeading() {
+  var history = appointmentsListState.view === LIST_VIEW.HISTORY;
+  scheduleTitle.textContent = history ? "Histórico de eventos" : "Próximos agendamentos";
+  scheduleDescription.textContent = history ? "Consulte os eventos já encerrados." : "Eventos confirmados a partir de hoje.";
+  scheduleViewToggle.textContent = history ? "← Voltar aos próximos" : "Ver todo o histórico";
+  buscaInput.placeholder = history ? "Buscar no histórico..." : "Buscar por evento ou data...";
+  buscaInput.setAttribute("aria-label", history ? "Buscar no histórico" : "Buscar próximos agendamentos");
+}
+
+function setAppointmentsListView(view) {
+  if (view !== LIST_VIEW.UPCOMING && view !== LIST_VIEW.HISTORY) return;
+  appointmentsListState[searchKeyForView(appointmentsListState.view)] = buscaInput.value;
+  appointmentsListState.view = view;
+  buscaInput.value = appointmentsListState[searchKeyForView(view)];
+  updateScheduleHeading();
+  if (hasLoadedAgendamentos && !appointmentsListState.loadFailed) renderAgendamentos();
+  var history = view === LIST_VIEW.HISTORY;
+  scheduleViewLive.textContent = history ? "Histórico de eventos aberto." : "Próximos agendamentos abertos.";
+  if (history) scheduleTitle.focus();
+  else scheduleViewToggle.focus();
+}
+
+function partitionSignature(partitions) {
+  return partitions.upcoming.concat(partitions.history).map(function (entry) {
+    return String(entry.appointment.id || "") + ":" + entry.status;
+  }).join("|");
+}
+
+function refreshTemporalViews(forceListRender) {
+  if (!hasLoadedAgendamentos) return;
+  var now = Date.now();
+  var status = AuditoriumStatus.classifyAppointments(agendamentosCache, now);
+  var partitions = AuditoriumStatus.partitionAppointments(agendamentosCache, now);
+  var signature = partitionSignature(partitions);
+  refreshAuditoriumStatus(status);
+  if (!appointmentsListState.loadFailed && (forceListRender || signature !== appointmentsListState.temporalSignature)) {
+    renderAgendamentos(partitions);
+  }
+  appointmentsListState.temporalSignature = signature;
 }
 
 function hideListPresentations() {
@@ -722,28 +790,34 @@ function actionButtons(agendamento) {
   '</div>';
 }
 
-function renderTable(agendamentos) {
+function listStatusBadge(status) {
+  var className = String(status || "").toLowerCase().replace(/_/g, "-");
+  var label = String(status || "").replace(/_/g, " ");
+  return '<span class="list-status-badge list-status-' + escapeHtml(className) + '">' + escapeHtml(label) + '</span>';
+}
+
+function renderTable(entries) {
   var html = "";
-  for (var i = 0; i < agendamentos.length; i++) {
-    var item = agendamentos[i];
+  for (var i = 0; i < entries.length; i++) {
+    var item = entries[i].appointment;
     html += '<tr>' +
       '<td><span class="event-name">' + escapeHtml(item.nome_evento) + '</span></td>' +
-      '<td class="cell-nowrap">' + escapeHtml(formatDate(item.data_evento)) + '</td>' +
-      '<td class="cell-nowrap">' + escapeHtml(formatTime(item.hora_inicio) + " - " + formatTime(item.hora_fim)) + '</td>' +
+      '<td class="cell-nowrap">' + escapeHtml(formatDate(item.data_evento) + " · " + formatTime(item.hora_inicio) + " - " + formatTime(item.hora_fim)) + '</td>' +
       '<td class="cell-center">' + escapeHtml(item.quantidade_participantes == null ? "-" : item.quantidade_participantes) + '</td>' +
+      '<td>' + listStatusBadge(entries[i].status) + '</td>' +
       '<td class="cell-actions">' + actionButtons(item) + '</td>' +
     '</tr>';
   }
   tabelaBody.innerHTML = html;
 }
 
-function renderCards(agendamentos) {
+function renderCards(entries) {
   var html = "";
-  for (var i = 0; i < agendamentos.length; i++) {
-    var item = agendamentos[i];
+  for (var i = 0; i < entries.length; i++) {
+    var item = entries[i].appointment;
     var actions = actionButtons(item);
     html += '<article class="schedule-item-card">' +
-      '<h3>' + escapeHtml(item.nome_evento) + '</h3>' +
+      '<div class="schedule-card-heading"><h3>' + escapeHtml(item.nome_evento) + '</h3>' + listStatusBadge(entries[i].status) + '</div>' +
       '<div class="schedule-card-meta">' +
         '<span>' + ICONS.calendar + escapeHtml(formatDate(item.data_evento)) + '</span>' +
         '<span>' + ICONS.clock + escapeHtml(formatTime(item.hora_inicio) + " - " + formatTime(item.hora_fim)) + '</span>' +
@@ -755,27 +829,41 @@ function renderCards(agendamentos) {
   cardsView.innerHTML = html;
 }
 
-function filterAgendamentos(query) {
+function filterAgendamentos(entries, query) {
   var normalized = String(query || "").trim().toLocaleLowerCase("pt-BR");
-  if (!normalized) return agendamentosCache.slice();
-  return agendamentosCache.filter(function (item) {
+  if (!normalized) return entries.slice();
+  return entries.filter(function (entry) {
+    var item = entry.appointment;
     return String(item.nome_evento || "").toLocaleLowerCase("pt-BR").indexOf(normalized) !== -1 ||
       formatDate(item.data_evento).indexOf(normalized) !== -1;
   });
 }
 
-function renderAgendamentos() {
+function renderAgendamentos(partitions) {
+  var temporalGroups = partitions || AuditoriumStatus.partitionAppointments(agendamentosCache, Date.now());
+  var entries = appointmentsListState.view === LIST_VIEW.HISTORY ? temporalGroups.history : temporalGroups.upcoming;
   var query = buscaInput.value.trim();
-  if (agendamentosCache.length === 0) {
-    var createAction = canCreate()
+  if (entries.length === 0) {
+    var history = appointmentsListState.view === LIST_VIEW.HISTORY;
+    var createAction = !history && canCreate()
       ? '<button type="button" class="btn btn-primary" data-action="create">' + ICONS.plus + 'Agendar Horário</button>'
       : "";
-    renderMessageState("empty", "Nenhum agendamento cadastrado", "Os novos agendamentos aparecerão aqui.", createAction);
+    renderMessageState(
+      "empty",
+      history ? "Nenhum evento finalizado" : "Nenhum próximo agendamento",
+      history ? "Os eventos encerrados aparecerão aqui." : "Os novos agendamentos aparecerão aqui.",
+      createAction
+    );
     return;
   }
-  var filtered = filterAgendamentos(query);
+  var filtered = filterAgendamentos(entries, query);
   if (filtered.length === 0) {
-    renderMessageState("search", "Nenhum agendamento encontrado", "Tente buscar por outro nome ou data.", "");
+    renderMessageState(
+      "search",
+      appointmentsListState.view === LIST_VIEW.HISTORY ? "Nenhum evento encontrado no histórico" : "Nenhum próximo agendamento encontrado",
+      "Tente buscar por outro nome ou data.",
+      ""
+    );
     return;
   }
   listState.hidden = true;
@@ -799,10 +887,11 @@ async function loadAgendamentos() {
     agendamentosCache = Array.isArray(data) ? data : [];
     hasLoadedAgendamentos = true;
     statusDataStale = false;
-    renderAgendamentos();
-    refreshAuditoriumStatus();
+    appointmentsListState.loadFailed = false;
+    refreshTemporalViews(true);
   } catch (err) {
     statusDataStale = hasLoadedAgendamentos;
+    appointmentsListState.loadFailed = true;
     if (hasLoadedAgendamentos) refreshAuditoriumStatus();
     else renderAuditoriumStatusError();
     renderMessageState(
@@ -1486,6 +1575,7 @@ logoutBtn.addEventListener("click", function () {
   clearSession();
   agendamentosCache = [];
   hasLoadedAgendamentos = false;
+  resetAppointmentsListState();
   resetFormState();
   hideOperationStatus();
   showLogin();
@@ -1667,7 +1757,14 @@ reservedTimesContent.addEventListener("click", function (event) {
   renderReservedTimesState("success", wizardState.availability.ocupados);
 });
 
-buscaInput.addEventListener("input", renderAgendamentos);
+scheduleViewToggle.addEventListener("click", function () {
+  setAppointmentsListView(appointmentsListState.view === LIST_VIEW.UPCOMING ? LIST_VIEW.HISTORY : LIST_VIEW.UPCOMING);
+});
+
+buscaInput.addEventListener("input", function () {
+  appointmentsListState[searchKeyForView(appointmentsListState.view)] = buscaInput.value;
+  if (!appointmentsListState.loadFailed) renderAgendamentos();
+});
 
 modalOverlay.addEventListener("click", function (event) {
   if (event.target === modalOverlay) hideModal();
@@ -1702,7 +1799,7 @@ document.addEventListener("pointerdown", function (event) {
 });
 
 document.addEventListener("visibilitychange", function () {
-  if (!document.hidden && hasLoadedAgendamentos) refreshAuditoriumStatus();
+  if (!document.hidden && hasLoadedAgendamentos) refreshTemporalViews(false);
 });
 
 window.addEventListener("pagehide", clearAuditoriumStatus);
@@ -1710,6 +1807,7 @@ window.addEventListener("pagehide", clearAuditoriumStatus);
 (function init() {
   updateThemeControl();
   updateDatePickerDisplay();
+  updateScheduleHeading();
   if (getToken()) showDashboard();
   else showLogin();
 })();
