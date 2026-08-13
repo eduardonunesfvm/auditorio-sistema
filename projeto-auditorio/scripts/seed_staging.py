@@ -72,18 +72,91 @@ def seed(event_date: date) -> None:
         for spec in [
             {
                 "nome_evento": "[HML] Reuniao de planejamento",
+                "dias_apos_data_base": 0,
                 "hora_inicio": time(9, 0),
                 "hora_fim": time(10, 0),
                 "quantidade_participantes": 12,
             },
             {
                 "nome_evento": "[HML] Treinamento institucional",
+                "dias_apos_data_base": 0,
                 "hora_inicio": time(14, 0),
                 "hora_fim": time(16, 0),
                 "quantidade_participantes": 35,
             },
+            {
+                "nome_evento": "[HML] Cafe com as equipes",
+                "dias_apos_data_base": 0,
+                "hora_inicio": time(7, 0),
+                "hora_fim": time(8, 0),
+                "quantidade_participantes": 18,
+            },
+            {
+                "nome_evento": "[HML] Alinhamento de projetos",
+                "dias_apos_data_base": 0,
+                "hora_inicio": time(10, 0),
+                "hora_fim": time(11, 0),
+                "quantidade_participantes": 14,
+            },
+            {
+                "nome_evento": "[HML] Integracao de novos servidores",
+                "dias_apos_data_base": 0,
+                "hora_inicio": time(13, 0),
+                "hora_fim": time(14, 0),
+                "quantidade_participantes": 30,
+            },
+            {
+                "nome_evento": "[HML] Encerramento semanal",
+                "dias_apos_data_base": 0,
+                "hora_inicio": time(16, 0),
+                "hora_fim": time(17, 0),
+                "quantidade_participantes": 42,
+            },
+            {
+                "nome_evento": "[HML] Capacitacao de seguranca",
+                "dias_apos_data_base": 3,
+                "hora_inicio": time(8, 0),
+                "hora_fim": time(10, 0),
+                "quantidade_participantes": 55,
+            },
+            {
+                "nome_evento": "[HML] Planejamento estrategico",
+                "dias_apos_data_base": 3,
+                "hora_inicio": time(13, 0),
+                "hora_fim": time(14, 30),
+                "quantidade_participantes": 16,
+            },
+            {
+                "nome_evento": "[HML] Apresentacao de resultados",
+                "dias_apos_data_base": 4,
+                "hora_inicio": time(9, 0),
+                "hora_fim": time(10, 30),
+                "quantidade_participantes": 70,
+            },
+            {
+                "nome_evento": "[HML] Forum de inovacao",
+                "dias_apos_data_base": 4,
+                "hora_inicio": time(15, 0),
+                "hora_fim": time(17, 0),
+                "quantidade_participantes": 38,
+            },
+            {
+                "nome_evento": "[HML] Integracao entre setores",
+                "dias_apos_data_base": 5,
+                "hora_inicio": time(7, 30),
+                "hora_fim": time(9, 0),
+                "quantidade_participantes": 27,
+            },
+            {
+                "nome_evento": "[HML] Assembleia institucional",
+                "dias_apos_data_base": 6,
+                "hora_inicio": time(18, 0),
+                "hora_fim": time(20, 0),
+                "quantidade_participantes": 90,
+            },
         ]:
-            _upsert_appointment(db, admin, event_date, spec)
+            appointment_date = event_date + timedelta(days=spec["dias_apos_data_base"])
+            _upsert_appointment(db, admin, appointment_date, spec)
         db.commit()
 
 

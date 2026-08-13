@@ -35,9 +35,10 @@ def test_seed_e_idempotente_e_usa_apenas_dados_ficticios(seed_database):
         users = db.query(Usuario).order_by(Usuario.login).all()
         appointments = db.query(Agendamento).order_by(Agendamento.hora_inicio).all()
         assert [user.login for user in users] == ["hml_admin", "hml_visualizador"]
-        assert len(appointments) == 2
+        assert len(appointments) == 12
         assert all(item.nome_evento.startswith("[HML]") for item in appointments)
-        assert all(item.data_evento == selected_date for item in appointments)
+        assert min(item.data_evento for item in appointments) == selected_date
+        assert max(item.data_evento for item in appointments) == date(2027, 5, 16)
 
 
 def test_seed_e_bloqueado_fora_de_staging(monkeypatch):
