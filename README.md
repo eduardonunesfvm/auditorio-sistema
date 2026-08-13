@@ -125,6 +125,8 @@ Serviços disponíveis:
 
 Para migrations, configuração sem Docker, backup e restauração, consulte o [guia de operação](docs/operations.md).
 
+O fluxo `develop` → homologação e `master` → produção, incluindo isolamento de dados, portão de acesso e seed fictício, está documentado no [guia de ambientes](docs/environments.md).
+
 ## Observabilidade
 
 Quando habilitada, a API envia métricas e traces diretamente ao Grafana Cloud por OTLP/HTTP. A integração registra latência, tráfego, erros, operações SQL e counters agregados de reservas, conflitos e proteção do login, sem enviar corpos, credenciais ou identificadores de usuários.

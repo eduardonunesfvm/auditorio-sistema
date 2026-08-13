@@ -109,11 +109,13 @@ Na edição, o próprio agendamento pode ser excluído da consulta. Essa operaç
 flowchart LR
     C[Commit ou pull request] --> U[Testes da API]
     C --> P[Testes com PostgreSQL]
-    C --> E[E2E em três navegadores]
+    C --> E[E2E no Chrome]
     U --> D[Build Docker]
     P --> D
     E --> D
 ```
+
+Após o CI, `develop` é publicado no ambiente isolado de homologação e `master` em produção. PostgreSQL, Redis e segredos não são compartilhados entre esses ambientes. Consulte o [guia de ambientes](environments.md).
 
 Os testes com PostgreSQL exercitam a migration e duas gravações concorrentes. Os testes E2E cobrem o wizard, a linha do tempo, erros de disponibilidade, acessibilidade por teclado, diferentes viewports e persistência do tema.
 
