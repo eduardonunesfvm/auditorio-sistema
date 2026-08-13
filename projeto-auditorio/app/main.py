@@ -10,6 +10,7 @@ import os
 from app.database import engine, get_db
 from app.observability import setup_observability
 from app.routers import auth, agendamentos
+from app.staging_gate import install_staging_gate
 
 ENV = os.getenv("ENV", "development")
 _docs_enabled = ENV != "production"
@@ -38,6 +39,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+install_staging_gate(app)
 
 app.include_router(auth.router)
 app.include_router(agendamentos.router)
