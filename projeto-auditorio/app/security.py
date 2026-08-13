@@ -16,10 +16,24 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+ENV = os.getenv("ENV", "development").strip().lower()
 
 # Validação: SECRET_KEY é obrigatória
 if not SECRET_KEY:
     raise ValueError("❌ A variável de ambiente SECRET_KEY não foi definida. Verifique seu arquivo .env")
+
+_LOCAL_ENVIRONMENTS = {"development", "local", "test", "testing"}
+_INSECURE_SECRET_VALUES = {
+    "sua-chave-secreta-super-segura-aqui",
+    "change-me",
+    "changeme",
+    "secret",
+}
+if ENV not in _LOCAL_ENVIRONMENTS and (
+    len(SECRET_KEY.encode("utf-8")) < 32
+    or SECRET_KEY.strip().lower() in _INSECURE_SECRET_VALUES
+):
+    raise ValueError("SECRET_KEY deve ser aleatoria, exclusiva e possuir ao menos 32 bytes fora do ambiente local.")
 
 # ==========================================
 # GESTÃO DE SENHAS (HASHING)

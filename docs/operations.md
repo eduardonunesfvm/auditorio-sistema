@@ -12,6 +12,9 @@ Este guia reúne configuração local, migrations, segurança, backup e diagnós
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Não | `30` | Validade do token |
 | `ENV` | Não | `development` | Em `production`, desabilita Swagger e OpenAPI |
 | `REDIS_URL` | Não | — | Habilita o rate limiting do login |
+| `STAGING_GATE_ENABLED` | Não | `false` | Habilita o portão adicional somente quando `ENV=staging` |
+| `STAGING_GATE_PASSWORD_HASH` | Em staging | — | Hash bcrypt da senha adicional de homologação |
+| `STAGING_GATE_SECRET` | Em staging | — | Assina o cookie de acesso; mínimo de 32 bytes |
 | `LOGIN_RATE_LIMIT_IP_MAX` | Não | `10` | Tentativas por IP |
 | `LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS` | Não | `60` | Janela do limite por IP |
 | `LOGIN_RATE_LIMIT_LOGIN_MAX` | Não | `5` | Tentativas por login |
@@ -23,6 +26,8 @@ Este guia reúne configuração local, migrations, segurança, backup e diagnós
 | `OTEL_METRIC_EXPORT_INTERVAL` | Não | `60000` | Intervalo de métricas em milissegundos |
 
 Nunca versione arquivos `.env` reais. Gere uma `SECRET_KEY` longa e aleatória para cada ambiente e mantenha `OTEL_EXPORTER_OTLP_HEADERS` somente no gerenciador de secrets.
+
+Em `staging` e `production`, a aplicação rejeita `SECRET_KEY` curta ou com valor conhecido de exemplo. O procedimento de homologação, seed e promoção está no [guia de ambientes](environments.md).
 
 ## Docker Compose
 

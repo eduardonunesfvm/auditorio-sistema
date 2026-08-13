@@ -98,7 +98,7 @@ python -m pytest app/test_postgres_scheduling.py -v
 ```bash
 cd auditorio-front
 npm ci
-npx playwright install
+npx playwright install chrome
 npm run test:e2e
 ```
 
@@ -124,6 +124,8 @@ Serviços disponíveis:
 - Health check: `GET http://localhost:8000/health`
 
 Para migrations, configuração sem Docker, backup e restauração, consulte o [guia de operação](docs/operations.md).
+
+O fluxo `develop` → homologação e `master` → produção, incluindo isolamento de dados, portão de acesso e seed fictício, está documentado no [guia de ambientes](docs/environments.md).
 
 ## Observabilidade
 

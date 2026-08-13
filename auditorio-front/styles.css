@@ -526,6 +526,159 @@ textarea:focus-visible,
   font-size: 0.92rem;
 }
 
+.status-layout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.status-primary {
+  min-width: 0;
+}
+
+.status-badge {
+  display: inline-flex;
+  min-height: 25px;
+  padding: 0.28rem 0.58rem;
+  border: 1px solid var(--blue-border);
+  border-radius: 999px;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--blue-800);
+  background: var(--blue-50);
+  font-size: 0.65rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  line-height: 1;
+}
+
+.status-badge-running {
+  border-color: var(--success-border);
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.status-badge-available {
+  border-color: var(--success-border);
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.status-dot {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.status-primary .next-event-name {
+  margin-top: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.status-countdown {
+  display: flex;
+  min-width: 190px;
+  align-items: flex-end;
+  flex-direction: column;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.status-countdown strong {
+  color: var(--blue-900);
+  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+  letter-spacing: -0.02em;
+}
+
+.status-countdown span,
+.status-availability,
+.status-empty p {
+  color: var(--slate-600);
+  font-size: 0.85rem;
+}
+
+.status-progress {
+  width: 100%;
+  height: 0.48rem;
+  margin-top: 1.15rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--slate-200);
+}
+
+.status-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue-600), var(--success));
+  transition: width var(--transition);
+}
+
+.status-next-summary {
+  margin-top: 0.8rem;
+  color: var(--slate-600);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.status-next-summary strong {
+  color: var(--slate-800);
+}
+
+.status-availability {
+  margin-top: 0.65rem;
+}
+
+.status-empty h3 {
+  margin-top: 0.75rem;
+  font-size: 1.05rem;
+}
+
+.status-empty p {
+  margin-top: 0.25rem;
+}
+
+.status-stale {
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  background: var(--warning-bg);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.status-transition-feedback {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  margin-top: 1rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius-sm);
+  align-items: baseline;
+  gap: 0.55rem;
+  color: var(--blue-800);
+  background: var(--blue-50);
+  font-size: 0.8rem;
+}
+
+.status-transition-feedback strong {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+
+.status-error .status-badge {
+  border-color: var(--warning-border);
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
 /* Listagem */
 
 .schedule-section {
@@ -554,6 +707,32 @@ textarea:focus-visible,
   margin-top: 0.2rem;
   color: var(--slate-600);
   font-size: 0.8rem;
+}
+
+.schedule-heading-copy {
+  min-width: 0;
+}
+
+.schedule-heading h2:focus {
+  outline: 0;
+}
+
+.schedule-heading h2:focus-visible {
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.schedule-tools {
+  display: flex;
+  min-width: min(100%, 530px);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.schedule-view-toggle {
+  min-height: 42px;
+  white-space: nowrap;
 }
 
 .search-field {
@@ -645,10 +824,10 @@ td:last-child {
   padding-right: 1.5rem;
 }
 
-th:nth-child(1) { width: 35%; }
-th:nth-child(2) { width: 120px; }
-th:nth-child(3) { width: 140px; }
-th:nth-child(4) { width: 120px; }
+th:nth-child(1) { width: 32%; }
+th:nth-child(2) { width: 245px; }
+th:nth-child(3) { width: 120px; }
+th:nth-child(4) { width: 130px; }
 th:nth-child(5) { width: 210px; }
 
 .event-name {
@@ -673,6 +852,49 @@ th:nth-child(5) { width: 210px; }
   align-items: center;
   justify-content: flex-end;
   gap: 0.4rem;
+}
+
+.list-status-badge {
+  display: inline-flex;
+  min-height: 26px;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--slate-300);
+  border-radius: 999px;
+  align-items: center;
+  color: var(--slate-700);
+  background: var(--surface-muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.list-status-em-andamento {
+  border-color: var(--success-border);
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.list-status-hoje {
+  border-color: var(--blue-border);
+  color: var(--blue-800);
+  background: var(--blue-50);
+}
+
+.list-status-finalizado {
+  color: var(--slate-600);
+}
+
+.schedule-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.schedule-card-heading h3 {
+  min-width: 0;
 }
 
 .schedule-cards {
@@ -1790,6 +2012,23 @@ input:-webkit-autofill:focus {
     flex-direction: column;
   }
 
+  .schedule-tools {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .status-layout {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .status-countdown {
+    min-width: auto;
+    align-items: flex-start;
+    text-align: left;
+  }
+
   .search-field {
     width: 100%;
     flex-basis: auto;
@@ -1866,6 +2105,22 @@ input:-webkit-autofill:focus {
     gap: 0.55rem;
   }
 
+  .status-layout {
+    flex-direction: column;
+  }
+
+  .status-countdown {
+    width: 100%;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--slate-200);
+  }
+
+  .status-transition-feedback {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
   .schedule-section {
     margin-top: 1.25rem;
     border: 0;
@@ -1877,6 +2132,17 @@ input:-webkit-autofill:focus {
     padding: 0 0 1rem;
     border: 0;
     gap: 0.9rem;
+  }
+
+  .schedule-tools {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .schedule-view-toggle,
+  .schedule-tools .search-field {
+    width: 100%;
   }
 
   .search-field input {
@@ -1909,6 +2175,11 @@ input:-webkit-autofill:focus {
   .schedule-item-card h3 {
     font-size: 0.98rem;
     line-height: 1.35;
+  }
+
+  .schedule-card-heading {
+    flex-direction: column;
+    gap: 0.6rem;
   }
 
   .schedule-card-meta {
