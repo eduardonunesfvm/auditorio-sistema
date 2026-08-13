@@ -98,7 +98,7 @@ python -m pytest app/test_postgres_scheduling.py -v
 ```bash
 cd auditorio-front
 npm ci
-npx playwright install
+npx playwright install chrome
 npm run test:e2e
 ```
 
