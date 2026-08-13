@@ -93,9 +93,13 @@ jobs:
 
       - name: Instalar navegadores
         working-directory: auditorio-front
-        run: npx playwright install --with-deps chrome msedge firefox
+        run: npx playwright install --with-deps chrome
 
-      - name: Rodar testes do wizard
+      - name: Rodar testes unitarios do frontend
+        working-directory: auditorio-front
+        run: npm run test:unit
+
+      - name: Rodar testes de interface no Chrome
         working-directory: auditorio-front
         run: npm run test:e2e
 
